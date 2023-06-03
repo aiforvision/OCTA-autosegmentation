@@ -1,0 +1,90 @@
+General:
+  amp: false
+  device: cpu
+  model:
+    in_channels: 1
+    kernel_size:
+    - 3
+    - 3
+    - 3
+    - 3
+    - 3
+    name: DynUNet
+    out_channels: 1
+    spatial_dims: 2
+    strides:
+    - 1
+    - 2
+    - 2
+    - 2
+    - 1
+    upsample_kernel_size:
+    - 1
+    - 2
+    - 2
+    - 2
+    - 1
+  seed: 79902
+  task: ves-seg
+Output:
+  save_dir: /home/OCTA-seg/docker/trained_models/ves_seg-S-GAN
+  save_to_disk: true
+  save_to_tensorboard: true
+Test:
+  batch_size: 1
+  data:
+    image:
+      folder: /var/dataset
+      suffix: .png
+  data_augmentation:
+  - image_only: true
+    keys:
+    - image
+    name: LoadImaged
+  - keys:
+    - image
+    name: ToGrayScaled
+  - keys:
+    - image
+    maxv: 1
+    minv: 0
+    name: ScaleIntensityd
+  - channel_dim: no_channel
+    keys:
+    - image
+    name: EnsureChannelFirstd
+    strict_check: false
+  - keys:
+    - image
+    mode: bilinear
+    name: Resized
+    spatial_size:
+    - 1216
+    - 1216
+  - k: 1
+    keys:
+    - image
+    name: Rotate90d
+  - keys:
+    - image
+    name: Flipd
+    spatial_axis: 0
+  - dtype: dtype
+    keys:
+    - image
+    name: CastToTyped
+  model_path: /home/OCTA-seg/docker/trained_models/ves_seg-S-GAN/checkpoints/30_model.pth
+  num_samples: 10
+  post_processing:
+    label:
+    - dtype: uint8
+      name: CastToType
+    prediction:
+    - name: Activations
+      sigmoid: true
+    - name: AsDiscrete
+      threshold: 0.5
+    - min_size: 128
+      name: RemoveSmallObjects
+  save_comparisons: false
+  save_dir: /var/segmented

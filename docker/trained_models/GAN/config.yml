@@ -1,0 +1,100 @@
+General:
+  amp: false
+  device: cpu
+  inference: G
+  model:
+    compute_identity: false
+    compute_identity_seg: true
+    model_d:
+      name: patchGAN70x70
+    model_g:
+      name: resnetGenerator9
+    model_s:
+      in_channels: 1
+      kernel_size:
+      - 3
+      - 3
+      - 3
+      - 3
+      - 3
+      name: DynUNet
+      out_channels: 1
+      spatial_dims: 2
+      strides:
+      - 1
+      - 2
+      - 2
+      - 2
+      - 1
+      upsample_kernel_size:
+      - 1
+      - 2
+      - 2
+      - 2
+      - 1
+    name: GanSegModel
+  seed: 675570
+  task: gan-ves-seg
+Output:
+  save_dir: /home/OCTA-seg/docker/trained_models/GAN
+  save_to_disk: true
+  save_to_tensorboard: true
+Test:
+  batch_size: 1
+  data:
+    deep:
+      folder: /var/deep_dataset
+      suffix: .png
+    real_A:
+      folder: /var/dataset
+      suffix: .csv
+  data_augmentation:
+  - allow_missing_keys: true
+    image_only: true
+    keys:
+    - deep
+    name: LoadImaged
+  - allow_missing_keys: true
+    image_scales:
+    - 4
+    keys:
+    - real_A
+    name: LoadGraphAndFilterByRandomRadiusd
+  - allow_missing_keys: true
+    keys:
+    - real_A
+    - deep
+    maxv: 1
+    minv: 0
+    name: ScaleIntensityd
+  - allow_missing_keys: true
+    channel_dim: no_channel
+    keys:
+    - real_A
+    - deep
+    name: EnsureChannelFirstd
+    strict_check: false
+  - allow_missing_keys: true
+    k: 1
+    keys:
+    - deep
+    name: Rotate90d
+  - allow_missing_keys: true
+    keys:
+    - deep
+    name: Flipd
+    spatial_axis: 0
+  - keys:
+    - real_A
+    name: AddRandomBackgroundNoised
+  - allow_missing_keys: true
+    dtype: dtype
+    keys:
+    - real_A
+    name: CastToTyped
+  model_path: /home/OCTA-seg/docker/trained_models/GAN/checkpoints/150_G_model.pth
+  post_processing:
+    label: null
+    prediction: null
+  save_comparisons: false
+  save_dir: /var/translated

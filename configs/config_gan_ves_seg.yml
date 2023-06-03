@@ -1,0 +1,223 @@
+---
+General:
+  amp: true
+  device: cuda:0
+  task: gan-ves-seg
+  inference: G
+  model:
+    name: GanSegModel
+    model_g:
+      name: resnetGenerator9
+    model_d: 
+      name: patchGAN70x70
+    model_s:
+      name: DynUNet
+      spatial_dims: 2
+      in_channels: 1
+      out_channels: 1
+      kernel_size: [3,3,3,3,3]
+      strides: [1,2,2,2,1]
+      upsample_kernel_size: [1,2,2,2,1]
+    compute_identity: false
+    compute_identity_seg: true
+Train:
+  data:
+    real_B:
+      folder: /ABSOLUTE/PATH/TO/REAL/OCTA/FOLDER
+      suffix: .png
+      # split: Optional: /PATH/TO/YOUR/INDEX/FILE
+    real_A:
+      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
+      suffix: .csv
+    real_A_seg:
+      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
+      suffix: .csv
+    deep:
+      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/DEEP/CSV/FOLDER
+      suffix: .png
+  epochs: 150
+  epochs_decay: 0
+  save_interval: 25
+  batch_size: 4
+  lr: 0.0002
+  loss_dg: LSGANLoss
+  loss_s: DiceBCELoss
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - real_B
+      - deep
+      image_only: true
+    - name: ToGrayScaled
+      keys:
+        - real_B
+    - name: LoadGraphAndFilterByRandomRadiusd
+      keys:
+        - real_A
+        - real_A_seg
+      image_scales: [4,16] # for 304x304 images
+      # image_scales: [6.73,16] # for 512x512 images
+      min_radius: [0,0]
+      max_dropout_prob: 0.02
+    - name: EnsureChannelFirstd
+      keys:
+      - real_A
+      - real_B
+      - real_A_seg
+      - deep
+      strict_check: false
+      channel_dim: no_channel
+    - name: Resized
+      keys:
+      - deep
+      - real_B
+      spatial_size:
+      - 304
+      - 304
+      # - 512
+      # - 512
+      mode: bilinear
+    - name: ScaleIntensityd
+      keys:
+      - real_A
+      - real_B
+      - real_A_seg
+      - deep
+      minv: 0
+      maxv: 1
+    - name: RandFlipd
+      keys:
+      - real_A
+      - real_B
+      - real_A_seg
+      - deep
+      prob: 0.5
+      spatial_axis:
+      - 0
+      - 1
+    - name: RandRotate90d
+      keys:
+      - real_A
+      - real_B
+      - real_A_seg
+      - deep
+      prob: 0.75
+    - name: RandRotated
+      keys:
+      - real_A
+      - real_B
+      - real_A_seg
+      - deep
+      prob: 1
+      range_x: 0.17453292519943295
+      padding_mode: zeros
+    - name: ScaleIntensityd
+      keys:
+      - real_A
+      - real_B
+      - real_A_seg
+      minv: 0
+      maxv: 1
+    - name: AsDiscreted
+      keys:
+      - real_A_seg
+      threshold: 0.1
+    - name: AddRandomBackgroundNoised
+      keys:
+      - real_A
+    - name: CastToTyped
+      keys:
+      - real_A
+      - real_A_seg
+      - real_B
+      dtype: dtype
+  post_processing:
+    prediction:
+      - name: AsDiscrete
+        threshold: 0.5
+      - name: RemoveSmallObjects
+        min_size: 160
+    label: null
+Validation:
+  batch_size: 4
+Test:
+  batch_size: 1
+  data:
+    real_B:
+      folder: /ABSOLUTE/PATH/TO/REAL/OCTA/FOLDER
+      suffix: .png
+    real_A:
+      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
+      suffix: .csv
+    deep:
+      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/DEEP/CSV/FOLDER
+      suffix: .png
+  num_samples: 5
+  save_comparisons: false
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - real_B
+      - deep
+      allow_missing_keys: true
+      image_only: true
+    - allow_missing_keys: true
+      name: ToGrayScaled
+      keys:
+        - real_B
+    - name: LoadGraphAndFilterByRandomRadiusd
+      keys:
+        - real_A
+      image_scales: [4]
+      allow_missing_keys: true
+    - name: ScaleIntensityd
+      keys:
+      - real_A
+      - real_B
+      - deep
+      allow_missing_keys: true
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+      - real_A
+      - real_B
+      - deep
+      allow_missing_keys: true
+      channel_dim: no_channel
+      strict_check: false
+    - name: Rotate90d
+      allow_missing_keys: true
+      keys:
+      - real_B
+      - deep
+      k: 1
+    - name: Flipd
+      allow_missing_keys: true
+      keys:
+      - real_B
+      - deep
+      spatial_axis: 0
+    - name: AddRandomBackgroundNoised
+      keys:
+      - real_A
+    - name: CastToTyped
+      keys:
+      - real_A
+      - real_B
+      allow_missing_keys: true
+      dtype: dtype
+  post_processing:
+    # Only if inference=S, else:
+    # prediction: null
+    prediction:
+      - name: AsDiscrete
+        threshold: 0.5
+      - name: RemoveSmallObjects
+        min_size: 160
+    label: null 
+  save_dir: ./results/gan-ves-seg/test # /PATH/TO/YOUR/RESULTS/FOLDER
+Output:
+  save_dir: ./results/gan-ves-seg # /PATH/TO/YOUR/RESULTS/FOLDER
+  save_to_disk: true
+  save_to_tensorboard: true

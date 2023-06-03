@@ -1,0 +1,20 @@
+monai
+numpy
+matplotlib
+tqdm
+prettytable
+tensorboard
+opencv-python
+scipy
+natsort
+PyYAML
+scikit-image
+anytree
+# Not available for python 3.11 yet (09.05.23)
+open3d
+
+# OPTIONAL: If you want to use bayesOpt:
+# ray[tune]
+# ray[air]
+# hpbandster
+# ConfigSpace
