@@ -15,7 +15,7 @@ In this work, we present a lightweight simulation based on space colonization fo
 Finally, we publicly offer our entire pipeline as a tool, with open source code, pretrained models, and a large dataset of synthetic OCTA images.
 
 # 🔴 TL;DR: Segment my images / Generate synthetic images
-We provide a docker file with a pretrained model to segment 3×3 mm² OCTA images:
+We provide a docker file with a pretrained model to segment 3×3 mm² macular OCTA images:
 ```sh
 # Build Docker image. (Only required once)
 docker build . -t octa-seg
@@ -24,14 +24,11 @@ To **segment** a set of images replace the placeholders with your directory path
 ```sh
 docker run -v [DATASET_DIR]:/var/dataset -v [RESULT_DIR]:/var/segmented octa-seg segmentation
 ``` 
+**We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To create more samples follow these steps:
+
 To **generate** a set of _N_ synthetic images, run:
 ```sh
 docker run -v [RESULT_DIR]:/var/generation octa-seg generation [N]
-``` 
-
-To **translate** a set of synthetic images to make them more realistic, run:
-```sh
-docker run -v [DATASET_DIR]:/var/dataset -v [DEEP_DATASET_DIR]:/var/deep_dataset -v [RESULT_DIR]:/var/translated octa-seg translation
 ``` 
 
 # 🔵 Manual Installation
@@ -49,26 +46,7 @@ pip install -r requirements.txt
 
 
 ### Synthetic Dataset
-We provide 500 synthetic training samples at under `/home/linus/repos/OCTA-seg/datasets/synth_csv`. To visualize them run:
-```sh
-# Create images
-python ./datasets/visualize_synth_csv.py --source_dir ./datasets/synth_csv --out_dir ./datasets/synth_png --factor 4
-
-# Create label maps
-python ./datasets/visualize_synth_csv.py --source_dir ./datasets/synth_csv --out_dir ./datasets/synth_png --factor 16 --binarize
-```
-
-To turn them into realistic images, **translate** the images using the docker images:
-```sh
-docker run -v ./datasets/synth_csv:/var/dataset -v ./datasets/synth_deep_images:/var/deep_dataset -v ./datasets/translated:/var/translated octa-seg translation
-```
-
-### Generating new synthetic samples
-The code for vessel graph generation can be found under `./vessel_graph_generation`. To generate samples as used in the paper, run:
-```sh
-# This will generate 500 samples at `./vessel_graph_generation/datasets/dataset_16_02_23/`
-python generate_vessel_graph.py --config_file ./vessel_graph_generation/configs/dataset_16_02_23.yml --num_samples 500
-```
+We provide 500 synthetic training samples with labels under [./datasets](./datasets). To **create more samples**, visit the respective [README](./datasets/README.md).
 
 ### Getting the evaluation datasets 
 
@@ -79,7 +57,7 @@ We use three test datasets:
 
 
 > ⚠️ **_NOTE:_**
-> - Make sure to select the correct images and not to include the FAZ segmentation of the OCTA-500 images.
+> - For the OCTA-500 dataset, make sure to select the correct images and not to include the FAZ segmentation.
 > - Each dataset comes with a different level of detail for vessel segmentation. When training on synthetic data, make sure to select the correct min_radius in the repective [config.yml](configs/config_ves_seg-S.yml#L37) for label alignment.
 > - When training on synthetic data for the dataset by Giarratano <i>et al.</i>, you have to apply random cropping in the training data augmentations of the [config.yml](configs/config_ves_seg-S.yml#L79) file.
 
@@ -108,7 +86,7 @@ Train:
 
 
 
-## Training
+## Segmentation training
 To train models for experiments as shown in the paper, you can use the provided config files under `./configs`. Select the required dataset by specifying the input path in the respective config file. After the training has started, a new folder will be created. The folder contains training details, checkpoints, and a 'config.yml' file that you will need for validation and testing.
 ```sh
 # Start a new training instance
@@ -121,7 +99,7 @@ To evaluate trained models (or methods that do not need to be trained), make sur
 python validate.py --config_file [PATH_TO_CONFIG_FILE] --epoch [EPOCH]
 ```
 
-## Testing
+## Testing / Inference
 To generate segmentations (or transformed images if testing GAN), make sure the test section of the respective config file is correct and run:
 ```sh
 python test.py --config_file [PATH_TO_CONFIG_FILE] --epoch [EPOCH]

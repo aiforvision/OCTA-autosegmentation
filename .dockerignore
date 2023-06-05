@@ -1,4 +1,6 @@
 results/
 datasets/
+!datasets/synth_deep_images/
+!datasets/visualize_synth_csv.py
 debug.*
 images/*
