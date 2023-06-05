@@ -31,7 +31,7 @@ Greenhouse:
       no_voxel_x: 76
       no_voxel_y: 76
       no_voxel_z: 1
-      oxygen_sample_geometry_path: /home/lkreitner/OCTA-seg/vessel_graph_generation/geometries/slab_oxy_sample_3mm.npy
+      oxygen_sample_geometry_path: ./vessel_graph_generation/geometries/slab_oxy_sample_3mm.npy
       tree_root_indices_path: ''
   DVC:
     I: 150

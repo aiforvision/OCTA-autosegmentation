@@ -1,4 +1,3 @@
-import logging
 import random
 import matplotlib.pyplot as plt
 import numpy as np
@@ -81,16 +80,16 @@ class Greenhouse():
         if self.venous_forest is not None:
             self.co2_mesh = CoordKdTree()
         t = 0
-        mbar = tqdm(self.modes)
-        for mode in mbar:
+        # mbar = tqdm(self.modes)
+        for mode in self.modes:
             if mode != self.modes[0]:
                 self.init_params_from_config(self.config[mode])
             if self.I<=0:
                 continue
 
 
-            pbar = tqdm(range(t,t+self.I), desc=f'[{mode}] Art: {self.art_nodes_per_step[-1]},Oxy: {self.oxys_per_step[-1]}, Ven: {self.ven_nodes_per_step[-1]}, Co2: {self.co2_per_step[-1]}')
-            for t in pbar:
+            # pbar = tqdm(range(t,t+self.I), desc=f'[{mode}] Art: {self.art_nodes_per_step[-1]},Oxy: {self.oxys_per_step[-1]}, Ven: {self.ven_nodes_per_step[-1]}, Co2: {self.co2_per_step[-1]}')
+            for t in range(t,t+self.I):
                 s = time.time()
                 # 1. Sample oxygen sinks
                 self.sample_oxygen_sinks(int(self.N), max(self.eps_n, self.eps_k), self.eps_s, t=t)
@@ -148,28 +147,22 @@ class Greenhouse():
                 if self.venous_forest is not None:
                     self.ven_nodes_per_step.append(len(self.ven_node_mesh.get_all_elements()))
                     self.co2_per_step.append(len(self.co2_mesh.get_all_elements()))
-                    pbar.set_description(f'[{mode}] Art: {self.art_nodes_per_step[-1]}, Oxy: {self.oxys_per_step[-1]}, Ven: {self.ven_nodes_per_step[-1]}, CO2: {self.co2_per_step[-1]}')
-                else:
-                    pbar.set_description(f'[{mode}] Art: {self.art_nodes_per_step[-1]}, Oxy: {self.oxys_per_step[-1]}')
+                    # pbar.set_description(f'[{mode}] Art: {self.art_nodes_per_step[-1]}, Oxy: {self.oxys_per_step[-1]}, Ven: {self.ven_nodes_per_step[-1]}, CO2: {self.co2_per_step[-1]}')
+                # else:
+                #     pbar.set_description(f'[{mode}] Art: {self.art_nodes_per_step[-1]}, Oxy: {self.oxys_per_step[-1]}')
 
-                logging.info(f'Finished step {t}\n'
-                    + f'Number of arterial nodes: {self.art_nodes_per_step[-1]}\n'
-                    + f'Number of venous nodes: {self.ven_nodes_per_step[-1] if self.venous_forest is not None else 0}\n'
-                    + f'Number of oxygen sinks: {self.oxys_per_step[-1]}\n'
-                    + f'Number of co2 sinks: {self.co2_per_step[-1]}'
-                )
-    def save_stats(self):
+    def save_stats(self, out_dir: str):
         plt.figure(figsize=(6,6))
         oxys = np.array(self.oxy_mesh.get_all_elements())
         plt.plot(oxys[:,1], 1-oxys[:,0], 'r.')
         plt.title('Final Oxygen Sink Distribution')
-        plt.savefig('oxy_distribution.png', bbox_inches='tight')
+        plt.savefig(f'{out_dir}/oxy_distribution.png', bbox_inches='tight')
         plt.cla()
 
         co2s = np.array(self.co2_mesh.get_all_elements())
         plt.plot(co2s[:,1], 1-co2s[:,0], 'b.')
         plt.title('Final CO₂ Sink Distribution')
-        plt.savefig('co2_distribution.png', bbox_inches='tight')
+        plt.savefig(f'{out_dir}/co2_distribution.png', bbox_inches='tight')
         plt.cla()
 
         plt.plot(self.time_per_step)
@@ -177,7 +170,7 @@ class Greenhouse():
         plt.title(f'Runtime Per Iteration (Total={total})')
         plt.xlabel("Iterations")
         plt.ylabel("Seconds")
-        plt.savefig('time_per_step.png', bbox_inches='tight')
+        plt.savefig(f'{out_dir}/time_per_step.png', bbox_inches='tight')
         plt.cla()
 
 

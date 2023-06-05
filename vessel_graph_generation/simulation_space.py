@@ -1,4 +1,3 @@
-import logging
 import numpy as np
 
 class SimulationSpace:
@@ -25,5 +24,3 @@ class SimulationSpace:
         self.size_x, self.size_y, self.size_z = self.geometry.shape
         # self.valid_voxels = np.random.uniform(0,1, self.geometry.shape)
         self.valid_voxels = np.array(list(zip(*np.where(self.geometry>0))))
-
-        logging.info('Initialized simulation space of size {} x {} x {}.'.format(self.size_x, self.size_y, self.size_z,))

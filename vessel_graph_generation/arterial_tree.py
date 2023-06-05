@@ -1,4 +1,3 @@
-import logging
 from typing import Generator
 
 import anytree
@@ -302,9 +301,6 @@ class ArterialTree():
 
         self.name_counter = 1
 
-        logging.info('Initialized arterial tree {}.'.format(self.name))
-        
-
     def __repr__(self):
 
         return str(anytree.RenderTree(self.root))
@@ -360,5 +356,3 @@ class ArterialTree():
             node.update_max_bounds((self.size_x, self.size_y, self.size_z))
             node.update_position(relative_scaling_factor * node.position)
             node.update_radius(relative_scaling_factor * node.radius)
-
-        logging.info('Rescaled {} to scaling factor {}.'.format(self.name, self.scaling_factor))

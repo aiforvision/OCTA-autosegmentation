@@ -10,11 +10,8 @@ import numpy as np
 from vessel_graph_generation.arterial_tree import ArterialTree, Node
 from vessel_graph_generation.simulation_space import SimulationSpace
 from vessel_graph_generation.utilities import norm_vector
-import logging
 import sys
 import csv
-sys.setrecursionlimit(10000)
-
 
 class Forest():
 
@@ -288,5 +285,3 @@ class Forest():
         with open(filepath, 'wb') as f:
             pickle.dump(self, f)
         self.simspace = tmp
-        logging.info('Saved {} to {}.'.format(name, os.path.abspath(filepath)))
-        

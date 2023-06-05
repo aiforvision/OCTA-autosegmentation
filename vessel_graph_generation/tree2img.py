@@ -302,15 +302,15 @@ def voxelize_forest(forest: dict, image_scale_factor: np.ndarray, radius_list:li
     img = (255*np.clip(img,0,1))
     return img.astype(np.uint16)
 
-def save_2d_projections(img: np.ndarray, prefix: str, *, dims=(0,1,2)):
+def save_2d_projections(img: np.ndarray, out_dir, prefix: str, *, dims=(0,1,2)):
     for dim in dims:
         img_proj = np.max(img, dim)
-        Image.fromarray(img_proj.astype(np.uint8)).save(f'{prefix}.png')
+        Image.fromarray(img_proj.astype(np.uint8)).save(f'{out_dir}/{prefix}.png')
 
-def save_2d_img(img: np.ndarray,  prefix: str):
-    Image.fromarray(img.astype(np.uint8)).save(f'{prefix}.png')
+def save_2d_img(img: np.ndarray, out_dir: str,  prefix: str):
+    Image.fromarray(img.astype(np.uint8)).save(f'{out_dir}/{prefix}.png')
 
-def plot_vessel_radii(radius_list: list = []):
+def plot_vessel_radii(out_dir: str, radius_list: list = []):
     plt.figure()
     bins = np.linspace(min(radius_list), max(radius_list),40)
     plt.xlim([min(radius_list), max(radius_list)])
@@ -321,7 +321,7 @@ def plot_vessel_radii(radius_list: list = []):
     plt.ylabel('Count')
     plt.gca().set_yscale('log')
 
-    plt.savefig("hist.png", bbox_inches="tight")
+    plt.savefig(f"{out_dir}/hist.png", bbox_inches="tight")
     plt.close()
 
 def forest_to_edges(forest: Forest):

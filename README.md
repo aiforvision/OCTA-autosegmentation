@@ -33,12 +33,8 @@ docker run -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 The following section explains how to prepare your environment to run the experiments from the paper or new experiments. 
 
 ### Installation
-Make sure you have a python 3 installation (tested with python 3.10) and a clean conda environment.
+Make sure you have a clean [conda](https://docs.conda.io/en/main/miniconda.html) environment with python 3 and [pytorch](https://pytorch.org/get-started/locally/) (tested with python 3.10, pytorch==2.0.1, and torchvision==0.15.2). Install the remaining required packages:
  ```sh
- # Install torch (make sure to use the correct cuda version)
-conda install pytorch==2.0.1 torchvision==0.15.2 cudatoolkit=11.8 -c pytorch
-
-# Install required packages
 pip install -r requirements.txt
  ```
 
