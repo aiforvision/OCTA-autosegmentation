@@ -1,5 +1,3 @@
-> ⚠️ **NOTE:** This repository is work in progress.
-
 # Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs
 This is the repository for the paper <b>"Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs" (2023)</b>.
 
