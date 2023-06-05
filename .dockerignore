@@ -1,6 +1,6 @@
 results/
 datasets/
 !datasets/background_images/
-!datasets/visualize_synth_csv.py
+!datasets/visualize_vessel_graphs.py
 debug.*
 images/*
