@@ -33,6 +33,7 @@ if __name__ == "__main__":
                 f.append(row)
         img, _ = rasterize_forest(f, args.factor, [],)
         if args.binarize:
+            img[img<0.1]=0
             Image.fromarray(img.astype(np.uint8)).convert("1").save(os.path.join(args.out_dir, name+".png"))
         else:
             Image.fromarray(img.astype(np.uint8)).save(os.path.join(args.out_dir, name+".png"))
