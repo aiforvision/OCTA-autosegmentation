@@ -8,7 +8,7 @@ elif [ "$1" = "generation" ]
 then
     python /home/OCTA-seg/generate_vessel_graph.py --config_file /home/OCTA-seg/docker/vessel_graph_gen_docker_config.yml --num_samples $2 \
     && python /home/OCTA-seg/test.py --config_file /home/OCTA-seg/docker/trained_models/GAN/config.yml --epoch 150 \
-    && python /home/OCTA-seg/datasets/visualize_synth_csv.py --source_dir /var/generation/synth_csv --out_dir /var/generation/synth_label_png --factor 16 --binarize
+    && python /home/OCTA-seg/datasets/visualize_vessel_graphs.py --source_dir /var/generation/vessel_graphs --out_dir /var/generation/labels --factor 16 --binarize
 elif [ "$1" = "transformation" ]
 then
     python /home/OCTA-seg/test.py --config_file /home/OCTA-seg/docker/trained_models/GAN/config.yml --epoch 150

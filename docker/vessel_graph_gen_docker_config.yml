@@ -48,7 +48,7 @@ Greenhouse:
     kappa: 2.9
     delta_sigma: 0.02
 output:
-  directory: /var/generation/synth_csv
+  directory: /var/generation/vessel_graphs
   subdir_with_timestamp: true
   image_scale_factor: 4
   save_trees: true

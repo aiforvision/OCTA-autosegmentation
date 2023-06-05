@@ -43,10 +43,10 @@ Test:
   batch_size: 1
   data:
     deep:
-      folder: /home/OCTA-seg/datasets/synth_deep_images
+      folder: /home/OCTA-seg/datasets/background_images
       suffix: .png
     real_A:
-      folder: /var/generation/synth_csv
+      folder: /var/generation/vessel_graphs
       suffix: .csv
   data_augmentation:
   - allow_missing_keys: true
@@ -97,4 +97,4 @@ Test:
     label: null
     prediction: null
   save_comparisons: false
-  save_dir: /var/generation/synth_png
+  save_dir: /var/generation/images
