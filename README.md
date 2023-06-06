@@ -22,9 +22,7 @@ To **segment** a set of images replace the placeholders with your directory path
 ```sh
 docker run -v [DATASET_DIR]:/var/dataset -v [RESULT_DIR]:/var/segmented octa-seg segmentation
 ``` 
-**We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To create more samples follow these steps:
-
-To **generate** a set of _N_ synthetic images, run:
+**We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To **generate** _N_ more samples, run:
 ```sh
 docker run -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 ``` 

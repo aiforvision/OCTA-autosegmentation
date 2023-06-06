@@ -139,12 +139,12 @@ if __name__ == '__main__':
         threads=args.threads
     if threads>1:
         import concurrent.futures
-        with tqdm(total=args.num_samples, desc="Generating vessel graph...") as pbar:
+        with tqdm(total=args.num_samples, desc="Generating vessel graphs...") as pbar:
             with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
                 future_dict = {executor.submit(main, config): i for i in range(args.num_samples)}
                 for future in concurrent.futures.as_completed(future_dict):
                     i = future_dict[future]
                     pbar.update(1)
     else:
-        for i in tqdm(range(args.num_samples), desc="Generating vessel graph..."):
+        for i in tqdm(range(args.num_samples), desc="Generating vessel graphs..."):
             main(args.config_file)
