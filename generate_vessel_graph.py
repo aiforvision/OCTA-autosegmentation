@@ -34,43 +34,6 @@ def main(_):
     image_scale_factor = config['output']['image_scale_factor']
     radius_list=[]
 
-    if config["output"].get("save_color"):
-        colors = [
-            [1,0,0], #red
-            [1,0.5,0], #orange
-            [1,1,0], #yellow
-            [0.5,1,0], #lime
-            [0,1,0], #green
-            [0,1,0.5], #green-blue
-            [0,1,1], #cyan
-            [0,0.5,1], #cyan-blue
-            [0,0,1], #blue
-            [0.5,0,1], #blue-pink
-            [1,0,1], #pink
-            [1,0,0.5], #magenta
-            [0.5,0,0.5], #puple
-            [0,0.39,0], #dark-green
-            [0.55,0.27,0.07], #saddle-brown
-            [0.98, 0.5,0.45] # salmon
-        ]
-        random.shuffle(colors)
-
-        forest_mat = 0
-        for tree in arterial_forest.get_trees() + venous_forest.get_trees():
-            edges = [{
-                "node1": current_node.position,
-                "node2": current_node.get_proximal_node().position,
-                "radius": current_node.radius
-            } for current_node in tree.get_tree_iterator(exclude_root=True, only_active=False)]
-            
-            tree_mat = tree2img.voxelize_forest(edges, image_scale_factor, radius_list, min_radius=0)
-            tree_mat = np.tile(tree_mat[:,:,np.newaxis], 3).astype(np.float64)
-            color = np.tile(np.array([[colors.pop()]]), (*tree_mat.shape[:-1], 1))
-            tree_mat = tree_mat * color
-            forest_mat = np.maximum(forest_mat, tree_mat)
-        tree2img.save_2d_img(forest_mat, out_dir, "art_ven_color")
-
-
     art_edges = [{
         "node1": current_node.position,
         "node2": current_node.get_proximal_node().position,
@@ -95,26 +58,13 @@ def main(_):
                 writer.writerow([row["node1"], row["node2"], row["radius"]])
 
     if config["output"]["save_3D_volumes"]:
-        art_mat = tree2img.voxelize_forest(edges, image_scale_factor, radius_list, min_radius=0)
+        art_mat = tree2img.voxelize_forest(art_edges, image_scale_factor, radius_list, min_radius=0)
         if config["output"]["save_art"]:
             np.save(f'{out_dir}/art_img.npy', art_mat)
-
-        art_mat = tree2img.voxelize_forest(edges, image_scale_factor, radius_list, min_radius=0)
         
-        if config["output"]["save_art"]:
-            tree2img.save_2d_projections(art_mat, out_dir, 'art_img', config["output"])
-            if config["output"]["save_3D_volumes"]:
-                np.save(f'{out_dir}/art_img.npy', art_mat)
-        
-        if venous_forest is not None:
-            edges = [{
-            "node1": current_node.position,
-            "node2": current_node.get_proximal_node().position,
-            "radius": current_node.radius
-        } for tree in venous_forest.get_trees() for current_node in tree.get_tree_iterator(exclude_root=True, only_active=False)]
-            ven_mat = tree2img.voxelize_forest(edges, image_scale_factor, radius_list, min_radius=0)
+            ven_mat = tree2img.voxelize_forest(ven_edges, image_scale_factor, radius_list, min_radius=0)
             if config["output"]["save_ven"]:
-                np.save(f'{out_dir}/ven_img.npy', art_mat)
+                np.save(f'{out_dir}/ven_img.npy', ven_mat)
         else:
             ven_mat = 0
 
@@ -163,7 +113,6 @@ def main(_):
             art_ven_mat = np.maximum(art_mat, ven_mat)
             art_ven_mat = np.clip(art_ven_mat, 0, 255).astype(np.uint8)
             tree2img.save_2d_img(ven_mat, out_dir, "art_ven_rgb")
-
 
     if config["output"]["save_stats"]:
         tree2img.plot_vessel_radii(out_dir, radius_list)

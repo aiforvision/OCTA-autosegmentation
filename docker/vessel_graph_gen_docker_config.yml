@@ -49,7 +49,6 @@ Greenhouse:
     delta_sigma: 0.02
 output:
   directory: /var/generation/vessel_graphs
-  subdir_with_timestamp: true
   image_scale_factor: 4
   save_trees: true
   save_3D_volumes: false
@@ -57,11 +56,7 @@ output:
   save_ven: false
   save_art_ven_gray: true
   save_art_ven_rgb: false
-  save_art_ven_gray_noise: false
-  save_proj:
-    - 2
   save_stats: false
-  save_nii: false
 Forest:
   type: stumps
   N_trees: 8
