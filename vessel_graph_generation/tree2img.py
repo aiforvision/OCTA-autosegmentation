@@ -1,5 +1,4 @@
 from typing import Literal
-import csv
 from random import random
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
@@ -29,7 +28,6 @@ def rasterize_forest(forest: dict,
     size_x = 1
     image_dim = tuple([math.ceil(image_scale_factor * d) for d in [76,76]])
     no_pixels_x, no_pixels_y = image_dim
-    voxel_size_x = size_x / (no_pixels_x)
     dpi = 100
     x_inch = no_pixels_x / dpi
     y_inch = no_pixels_y / dpi
@@ -79,18 +77,7 @@ def rasterize_forest(forest: dict,
             c_new[(colors>0.01) & (colors<=0.02)]=0.5
             c_new[colors>0.02]=1
             colors=c_new
-        # colors-=colors.min()
-        # colors/=colors.max()
         colors=cm.plasma(colors)
-        
-            # def color_choice(r: float):
-            #     if r==0.1:
-            #         return "tab:blue"
-            #     elif r==0.5:
-            #         return "firebrick"
-            #     else:
-            #         return "gold"
-            # colors=[color_choice(r) for r in colors]
     else:
         colors="w"
     ax.add_collection(collections.LineCollection(edges, linewidths=radii, colors=colors, antialiaseds=True, capstyle="round"))
@@ -253,12 +240,7 @@ def voxelize_forest(forest: dict, image_scale_factor: np.ndarray, radius_list:li
     pos_correction = np.array([0,0,10*voxel_size_x])
     voxel_diag = np.linalg.norm(np.array([voxel_size_x, voxel_size_x, voxel_size_x]))
 
-    # img = np.zeros((no_voxel_x, no_voxel_y), np.uint8)
     img = np.zeros((no_voxel_x, no_voxel_y, no_voxel_z))
-    # for tree in tqdm(forest.get_trees(), desc="Voxelizing forest"):
-    #     for current_node in tree.get_tree_iterator(exclude_root=True, only_active=False):
-            # proximal_node = current_node.get_proximal_node()
-            # radius = current_node.radius
     for edge in tqdm(forest, desc="Voxelizing forest"):
         radius = float(edge["radius"])
         if radius<min_radius or radius>max_radius:

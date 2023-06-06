@@ -32,7 +32,11 @@ def read_config(configpath):
     path = os.path.abspath(configpath)
     with open(path, "r") as filepath:
     #     config = json.load(filepath)
-        config: dict[str,dict] = yaml.safe_load(filepath)
+        try:
+            config: dict[str,dict] = yaml.safe_load(filepath)
+        except Exception as e:
+            print(f"Your provided config file at {filepath} is not a valid yaml file!")
+            raise e
 
     # Using print as logger is not configured yet
     return config

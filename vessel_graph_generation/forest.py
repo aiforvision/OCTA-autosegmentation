@@ -10,7 +10,6 @@ import numpy as np
 from vessel_graph_generation.arterial_tree import ArterialTree, Node
 from vessel_graph_generation.simulation_space import SimulationSpace
 from vessel_graph_generation.utilities import norm_vector
-import sys
 import csv
 
 class Forest():
@@ -30,8 +29,6 @@ class Forest():
             self._initialize_tree_stumps_from_simspace(config, config['d_0'], config['r_0'])
         elif config['type'] == 'stumps':
             self._initialize_tree_stumps(config, config['d_0'], config['r_0'])
-        elif config['type'] == 'file':
-            self._initialize_from_file(config, config['d_0'], config['r_0'])
 
     def _initialize_tree_stumps_from_template_forest(self, forest: "Forest"):
         for tree_counter, template_tree in enumerate(forest.get_trees()):
@@ -73,30 +70,11 @@ class Forest():
             y = r * math.sin(alpha) + center[1]
             z = random.random() * 1/76
 
-            # indices = np.array(random.choice(self.sim_space.valid_start_voxels))
-            # if len(indices)==2:
-            #     indices = np.array([*indices, random.choice(range(self.sim_space.geometry.shape[-1]))])
-            # tree_pos = self.sim_vox_2_tree_pos(indices)
             tree_pos = np.array([x,y,z])
-
             tree = ArterialTree(tree_name, tree_pos, r_0, self.size_x, self.size_y, self.size_z, self)
-            # # Calculate most promising direction
-            # lookahead = 10
-            # direction = np.array([0,0,0])
-            # for v in np.array([(1,0,0), (0,1,0), (0,0,1), (-1,0,0), (0,-1,0), (0,0,-1)]):
-            #     for i in range(1,lookahead+1):
-            #         idx = indices + i*v
-            #         if all(idx<self.sim_space.geometry.shape) and all(idx>=0):
-            #             direction = direction + self.sim_space.geometry[tuple(idx)]*v
-            # if all(direction == 0):
-            #     direction = [(1,0,0), (0,1,0), (0,0,1), (-1,0,0), (0,-1,0), (0,0,-1)][np.random.choice(range(6))]
-            # direction = norm_vector(direction) * d_0
-
             direction = norm_vector([random.random()-0.5, random.random()-0.5, 0]) * d_0
-            
             tree.add_node(position=tree_pos+direction, radius=r_0, parent=tree.root)
             self.trees.append(tree)
-
 
     def _initialize_tree_stumps(self, config, d_0: float, r_0: float):
 
@@ -227,30 +205,12 @@ class Forest():
 
     def is_inbounds(self, pos: np.ndarray) -> bool:
         return all(pos<self.size) and all(0<=pos) and self.sim_space.geometry[self.tree_pos_2_sim_vox(pos)]>0
-
-
-    def _initialize_from_file(self, config):
-
-        print(os.path.abspath(config['filepath']))
-
-        tree_files = glob.glob(os.path.join(config['filepath'], '*.pkl'))
-
-        for tree_file in tree_files:
-
-            f = open(tree_file, 'rb')
-            tree = pickle.load(f)
-            f.close()
-
-            self.trees.append(tree)
-
     
     def rescale(self, s=None, s_0=None, N_s=None, relative_rescale_factor=None):
         for tree in self.trees:
             tree.rescale(s, s_0, N_s, relative_rescale_factor)
 
-
     def get_trees(self):
-
         return self.trees
 
     def get_nodes(self) -> Generator[Node, None, None]:
@@ -275,13 +235,3 @@ class Forest():
                     proximal_node = current_node.get_proximal_node()
                     radius = current_node.radius
                     writer.writerow([current_node.position, proximal_node.position, radius])
-
-    def save_pkl(self, save_directory='.'):
-        name = f'{"Arterial" if self.arterial else "Venous"}Forest'
-        os.makedirs(save_directory, exist_ok=True)
-        filepath = os.path.join(save_directory, name + '.pkl')
-        tmp = self.sim_space
-        self.sim_space = None
-        with open(filepath, 'wb') as f:
-            pickle.dump(self, f)
-        self.simspace = tmp

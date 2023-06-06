@@ -1,5 +1,5 @@
 import argparse
-
+import csv
 from vessel_graph_generation.forest import Forest
 from vessel_graph_generation.greenhouse import Greenhouse
 from vessel_graph_generation.utilities import prepare_output_dir, read_config
@@ -7,13 +7,10 @@ import vessel_graph_generation.tree2img as tree2img
 import numpy as np
 import os
 from tqdm import tqdm
-import random
 import yaml
 
 
-def main(_):
-    # Read config file
-    config = read_config(args.config_file)
+def main(config):
     # Initialize greenhouse
     greenhouse = Greenhouse(config['Greenhouse'])
     # Prepare output directory
@@ -41,14 +38,13 @@ def main(_):
     } for tree in arterial_forest.get_trees() for current_node in tree.get_tree_iterator(exclude_root=True, only_active=False)]
 
     if venous_forest is not None:
-            ven_edges = [{
+        ven_edges = [{
             "node1": current_node.position,
             "node2": current_node.get_proximal_node().position,
             "radius": current_node.radius
         } for tree in venous_forest.get_trees() for current_node in tree.get_tree_iterator(exclude_root=True, only_active=False)]
 
     if config['output']['save_trees']:
-        import csv
         name = out_dir.split("/")[-1]
         filepath = os.path.join(out_dir, name+'.csv')
         with open(filepath, 'w+') as file:
@@ -117,32 +113,38 @@ def main(_):
     if config["output"]["save_stats"]:
         tree2img.plot_vessel_radii(out_dir, radius_list)
 
-    # os.chdir(os.path.abspath('../..'))
-
 if __name__ == '__main__':
     # Parse input arguments
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--config_file', type=str, required=True)
     parser.add_argument('--num_samples', type=int, default=1)
     parser.add_argument('--debug', action="store_true")
-    parser.add_argument('--threads', help="Number of parallel threads", type=int, default=-1)
+    parser.add_argument('--threads', help="Number of parallel threads. By default all available threads but one are used.", type=int, default=-1)
     args = parser.parse_args()
 
     if args.debug:
         import warnings
         warnings.filterwarnings('error')
 
-    # from multiprocessing import cpu_count
-    # from multiprocessing.dummy import Pool
-    # from multiprocessing.pool import ThreadPool
-    # if args.threads == -1:
-    #     cpus = cpu_count()
-    #     threads = cpus-1 if cpus>1 else 1
-    # else:
-    #     threads=args.threads
-    # if threads>1:
-    #     pool: ThreadPool = Pool(threads)
-    #     results = list(tqdm(pool.imap(main, [args.config_file for _ in range(args.num_samples)]), total=args.num_samples, desc="Generating vessel graph..."))
-    # else:
-    for i in tqdm(range(args.num_samples), desc="Generating vessel graph..."):
-        main(args.config_file)
+    assert os.path.isfile(args.config_file), f"Your provided config path {args.config_file} does not exist!"
+    config = read_config(args.config_file)
+
+    from multiprocessing import cpu_count
+    # Read config file
+
+    if args.threads == -1:
+        cpus = cpu_count()
+        threads = min(cpus-1 if cpus>1 else 1,args.num_samples)
+    else:
+        threads=args.threads
+    if threads>1:
+        import concurrent.futures
+        with tqdm(total=args.num_samples, desc="Generating vessel graph...") as pbar:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
+                future_dict = {executor.submit(main, config): i for i in range(args.num_samples)}
+                for future in concurrent.futures.as_completed(future_dict):
+                    i = future_dict[future]
+                    pbar.update(1)
+    else:
+        for i in tqdm(range(args.num_samples), desc="Generating vessel graph..."):
+            main(args.config_file)
