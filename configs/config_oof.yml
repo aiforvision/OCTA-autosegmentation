@@ -162,7 +162,6 @@ Test:
     - name: AsDiscrete
       threshold: 0.5
     label: null
-  num_samples: 6000
   save_dir: ./results/oof/test
 Output:
   save_dir: ./results/oof

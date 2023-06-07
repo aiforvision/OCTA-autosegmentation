@@ -5,6 +5,7 @@ import torch
 import numpy as np
 from glob import glob
 from natsort import natsorted
+import os
 
 from monai.data.meta_obj import set_track_meta
 
@@ -53,11 +54,13 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoa
         paths = natsorted(glob(val["files"], recursive=True))
         assert len(paths)>0, f"Error: Your provided file path {val['files']} for {key} does not match any files!"
         if "split" in val:
+            assert os.path.isfile(val["split"]), f"Error: Your provided split file path {val['split']} for {key} does not exist."
             with open(val["split"], 'r') as f:
                 lines = f.readlines()
                 indices = [int(line.rstrip()) for line in lines]
                 assert max(indices)<len(paths), f"Error: Your provided split file for {key} does not seem to match your dataset! The index {max(indices)} was requested but the dataset only contains {len(paths)} files."
                 paths = array(paths)[indices].tolist()
+                assert len(paths)>0, f"Error: Your provided split file does not reference any file!"
         data[key] = paths
         data[key+"_path"] = paths
 

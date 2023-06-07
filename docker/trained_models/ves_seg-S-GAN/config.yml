@@ -73,7 +73,6 @@ Test:
     - image
     name: CastToTyped
   model_path: /home/OCTA-seg/docker/trained_models/ves_seg-S-GAN/checkpoints/30_model.pth
-  num_samples: 10
   post_processing:
     label:
     - dtype: uint8

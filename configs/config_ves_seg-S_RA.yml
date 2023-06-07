@@ -198,7 +198,6 @@ Test:
       spilt: /home/lkreitner/OCTA-seg/datasets/OCTA-500/test_0.txt
       # files: /home/lkreitner/OCTA-seg/datasets/ROSE-1/images/**/*.png
       # spilt: /home/lkreitner/OCTA-seg/datasets/ROSE-1/test_0.txt
-  num_samples: 10
   save_comparisons: false
   data_augmentation:
     - name: LoadImaged

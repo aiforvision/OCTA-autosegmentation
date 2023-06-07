@@ -212,7 +212,6 @@ Test:
 
       # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
       # spilt: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
-  num_samples: 10
   save_comparisons: false
   data_augmentation:
     - name: LoadImaged

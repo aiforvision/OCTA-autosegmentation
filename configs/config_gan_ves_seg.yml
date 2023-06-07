@@ -145,7 +145,6 @@ Test:
       files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
     background:
       files: /ABSOLUTE/PATH/TO/SYNTHETIC/BACKGROUND/FOLDER/**/*.png
-  num_samples: 5
   save_comparisons: false
   data_augmentation:
     - name: LoadImaged
