@@ -7,10 +7,10 @@ This is the repository for the paper <b>"Detailed retinal vessel segmentation wi
 
 
 ## Abstract
-Optical coherence tomography angiography (OCTA) is a non-invasive imaging modality that can acquire high-resolution volumes of the retinal vasculature and aid the diagnosis of ocular, neurological and cardiac diseases. In order to automatically extract quantitative biomarkers from these images, the visible blood vessels have to be segmented. Classical segmentation algorithms based on thresholding are strongly affected by image artifacts and limited signal-to-noise ratio. The use of deep learning-based segmentation methods has been inhibited by a lack of large datasets with detailed annotations of the blood vessels. To address this issue, recent work has employed transfer learning, where a segmentation network is trained on synthetic OCTA images and is then applied to real data.
-However, previously proposed simulation models are incapable of modeling the entire complexity of retinal vasculature and do not provide effective contrast adaptation. Because of this, current methods are not able to fully segment the retinal vasculature, in particular the smallest capillaries.
-In this work, we present a lightweight simulation based on space colonization for faster and more realistic OCTA synthesis. Moreover, we introduce three data transformation pipelines to decrease the domain gap between real and artificial images. We demonstrate the superior performance of our approach in extensive quantitative and qualitative experiments on three public datasets that compare our method to traditional computer vision algorithms, supervised training using human annotations, and previous work using transfer learning.
-Finally, we publicly offer our entire pipeline as a tool, with open source code, pretrained models, and a large dataset of synthetic OCTA images.
+Optical coherence tomography angiography (OCTA) is a non-invasive imaging modality that can acquire high-resolution volumes of the retinal vasculature and aid the diagnosis of ocular, neurological and cardiac diseases. Segmentation of the visible blood vessels is a common first step when extracting quantitative biomarkers from these images. Classical segmentation algorithms based on thresholding are strongly affected by image artifacts and limited signal-to-noise ratio. The use of modern, deep learning-based segmentation methods has been inhibited by a lack of large datasets with detailed annotations of the blood vessels. To address this issue, recent work has employed transfer learning, where a segmentation network is trained on synthetic OCTA images and is then applied to real data.
+However, the previously proposed simulation models are incapable of faithfully modeling the retinal vasculature and do not provide effective domain adaptation. Because of this, current methods are not able to fully segment the retinal vasculature, in particular the smallest capillaries.
+In this work, we present a lightweight simulation of the retinal vascular network based on space colonization for faster and more realistic OCTA synthesis. Moreover, we introduce three contrast adaptation pipelines to decrease the domain gap between real and artificial images. We demonstrate the superior performance of our approach in extensive quantitative and qualitative experiments on three public datasets that compare our method to traditional computer vision algorithms and supervised training using human annotations.
+Finally, we make our entire pipeline publicly available, including the source code, pretrained models, and a large dataset of synthetic OCTA images.
 
 # 🔴 TL;DR: Segment my images / Generate synthetic images
 We provide a docker file with a pretrained model to segment 3×3 mm² macular OCTA images:
@@ -28,7 +28,7 @@ docker run -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 ``` 
 
 # 🔵 Manual Installation
-The following section explains how to prepare your environment to run the experiments from the paper or new experiments. 
+The following section explains how to prepare your environment to run the experiments from the paper, or new experiments. 
 
 ### Installation
 Make sure you have a clean [conda](https://docs.conda.io/en/main/miniconda.html) environment with python 3 and [pytorch](https://pytorch.org/get-started/locally/) (tested with python 3.10, pytorch==2.0.1, and torchvision==0.15.2). Install the remaining required packages:
