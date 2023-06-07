@@ -25,7 +25,7 @@ Validation:
       # files: /ABSOLUTE/PATH/TO/ROSE-1/segmentations/**/*.png
       # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
 
-      # files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
+      # files: /ABSOLUTE/PATH/TO/OCTA-500/segmentations/**/*.png
       # split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
   data_augmentation:
     - name: LoadImaged
