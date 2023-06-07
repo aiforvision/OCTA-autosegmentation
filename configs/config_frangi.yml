@@ -10,27 +10,23 @@ Validation:
   batch_size: 1
   data:
     image:
-      # folder:/ABSOLUTE/PATH/TO/Giarratano/original_images/
+      # files:/ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png
       # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
 
-      # folder: /ABSOLUTE/PATH/TO/ROSE-1/images/
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
       # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
 
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/images/
+      files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
-
-      suffix: .png
     label: 
-      # folder: /ABSOLUTE/PATH/TO/Giarratano/segmented_images/
+      # files: /ABSOLUTE/PATH/TO/Giarratano/segmented_images/**/*.png
       # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
 
-      # folder: /ABSOLUTE/PATH/TO/ROSE-1/segmentations/
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/segmentations/**/*.png
       # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
 
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/segmentations/
+      files: /ABSOLUTE/PATH/TO/OCTA-500/segmentations/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
-
-      suffix: .png
   data_augmentation:
     - name: LoadImaged
       keys:
@@ -101,16 +97,14 @@ Test:
   batch_size: 1
   data:
     image:
-      folder: /ABSOLUTE/PATH/TO/Giarratano/original_images/
+      files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png
       split: /ABSOLUTE/PATH/TO/Giarratano/test_0.txt
 
-      # folder: /ABSOLUTE/PATH/TO/ROSE-1/images/
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
       # split: /ABSOLUTE/PATH/TO/ROSE-1/test_0.txt
 
-      # folder: /ABSOLUTE/PATH/TO/OCTA-500/images/
+      # files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
       # split: /ABSOLUTE/PATH/TO/OCTA/test_0.txt
-
-      suffix: .png
   save_comparisons: false
   data_augmentation:
     - name: LoadImaged

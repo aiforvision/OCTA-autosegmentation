@@ -34,8 +34,7 @@ Test:
   batch_size: 1
   data:
     image:
-      folder: /var/dataset
-      suffix: .png
+      files: /var/dataset/**/*.png
   data_augmentation:
   - image_only: true
     keys:

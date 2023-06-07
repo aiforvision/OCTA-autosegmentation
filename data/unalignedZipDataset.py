@@ -6,14 +6,14 @@ class UnalignedZipDataset(Dataset):
     """
     Manages the dateset for the gan_ves_seg Task.
     It pairs synethic samples (real_A) with its corresponding label (real_A_seg),
-    a random real sample (real_B) and a background noise image (deep). 
+    a random real sample (real_B) and a background noise image (background). 
     """
     def __init__(self, data: dict, transform: Compose, phase = "train", inference="S") -> None:
         super().__init__()
         A_paths = data.get("real_A") if phase == "train" or inference == "G" else None
         A_seg_paths = data.get("real_A_seg") if phase == "train" else None
         B_paths = data.get("real_B")  if phase == "train" or inference == "S" else None
-        deep = data.get("deep") if phase == "train" or inference == "G" else None
+        background = data.get("background") if phase == "train" or inference == "G" else None
         self.A_paths = A_paths
         self.B_paths = B_paths
         self.A_seg_paths = A_seg_paths
@@ -21,8 +21,8 @@ class UnalignedZipDataset(Dataset):
         self.A_size = 0 if A_paths is None else len(A_paths)
         self.B_size = 0 if B_paths is None else len(B_paths)
         self.A_seg_size = 0 if A_seg_paths is None else len(A_seg_paths)
-        self.deep = deep
-        self.deep_size = 0 if deep is None else len(deep)
+        self.background = background
+        self.background_size = 0 if background is None else len(background)
         self.phase = phase
 
     def __len__(self) -> int:
@@ -52,8 +52,8 @@ class UnalignedZipDataset(Dataset):
             A_seg_path = self.A_seg_paths[index % self.A_size]
             data["real_A_seg_path"] = A_seg_path
             data["real_A_seg"] = A_seg_path
-        if self.deep is not None:
-            data["deep"] = self.deep[random.randint(0, self.deep_size - 1)]
+        if self.background is not None:
+            data["background"] = self.background[random.randint(0, self.background_size - 1)]
         data_transformed = self.transform(data)
         return data_transformed
 

@@ -122,8 +122,8 @@ class NoiseModeld(MapTransform):
         if random.random()<self.prob:
             for key in self.keys:
                 img: torch.Tensor = data[key]
-                deep: torch.Tensor = data["deep"]
-                d = self.noise_model.forward(img.unsqueeze(0), deep, False, downsample_factor=self.downsample_factor).squeeze(0).detach()
+                background: torch.Tensor = data["background"]
+                d = self.noise_model.forward(img.unsqueeze(0), background, False, downsample_factor=self.downsample_factor).squeeze(0).detach()
                 data[key]=d
         return data
 
@@ -150,22 +150,22 @@ class RandomDecreaseResolutiond(MapTransform):
 
 class AddRandomBackgroundNoised(MapTransform):
     """
-    Add background noise to image. If there is no deep noise image available, use random uniform noise.
+    Add background noise to image. If there is no background noise image available, use random uniform noise.
     """
-    def __init__(self, keys:  tuple[str], delete_deep=True) -> None:
+    def __init__(self, keys:  tuple[str], delete_background=True) -> None:
         super().__init__(keys, True)
-        self.delete_deep = delete_deep
+        self.delete_background = delete_background
 
     def __call__(self, data):
         for key in self.keys:
             if key in data:
                 img: torch.Tensor = data[key]
-                noise = data["deep"] if "deep" in data else torch.rand_like(img)
+                noise = data["background"] if "background" in data else torch.rand_like(img)
                 speckle_noise = np.random.uniform(0,1,img.shape)
                 img = torch.maximum(img, noise*speckle_noise)
                 data[key] = img
-        if self.delete_deep and "deep" in data:
-            del data["deep"]
+        if self.delete_background and "background" in data:
+            del data["background"]
         return data
 
 class AddLineArtifact(MapTransform):

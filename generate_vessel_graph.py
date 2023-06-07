@@ -126,7 +126,7 @@ if __name__ == '__main__':
         import warnings
         warnings.filterwarnings('error')
 
-    assert os.path.isfile(args.config_file), f"Your provided config path {args.config_file} does not exist!"
+    assert os.path.isfile(args.config_file), f"Error: Your provided config path {args.config_file} does not exist!"
     config = read_config(args.config_file)
 
     from multiprocessing import cpu_count
@@ -147,4 +147,4 @@ if __name__ == '__main__':
                     pbar.update(1)
     else:
         for i in tqdm(range(args.num_samples), desc="Generating vessel graphs..."):
-            main(args.config_file)
+            main(config)

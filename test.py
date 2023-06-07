@@ -23,6 +23,7 @@ epoch_suffix = f"_{args.epoch}"
 
 # Read config file
 path: str = os.path.abspath(args.config_file)
+assert os.path.isfile(path), f"Your provided config path {args.config_file} does not exist!"
 with open(path, "r") as stream:
     if path.endswith(".json"):
         config: dict[str,dict] = json.load(stream)

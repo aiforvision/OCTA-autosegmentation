@@ -14,27 +14,24 @@ General:
 Train:
   data:
     image:
-      # folder: /ABSOLUTE/PATH/TO/OCTA-500/images
+      # files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
       # split: /ABSOLUTE/PATH/TO/OCTA-500/train_0.txt
 
-      # folder: /ABSOLUTE/PATH/TO/ROSE-1/images
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
       # split: /ABSOLUTE/PATH/TO/ROSE-1/train_0.txt
 
-      folder: /ABSOLUTE/PATH/TO/Giarratano/original_images
+      files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png
       split: /ABSOLUTE/PATH/TO/Giarratano/train_0.txt
-
-      suffix: .png
     label:
 
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/segmentations
+      files: /ABSOLUTE/PATH/TO/OCTA-500/segmentations/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/train_0.txt
 
-      # folder: /ABSOLUTE/PATH/TO/ROSE-1/segmentations
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/segmentations/**/*.png
       # split: /ABSOLUTE/PATH/TO/ROSE-1/train_0.txt
 
-      # folder: /ABSOLUTE/PATH/TO/Giarratano/segmented_images
+      # files: /ABSOLUTE/PATH/TO/Giarratano/segmented_images/**/*.png
       # split: /ABSOLUTE/PATH/TO/Giarratano/train_0.txt
-      suffix: .png
   epochs: 30
   epochs_decay: 10
   val_interval: 1
@@ -59,7 +56,7 @@ Train:
       keys:
       - image
       - label
-      - deep
+      - background
       strict_check: false
       channel_dim: no_channel
     - name: Resized
@@ -122,12 +119,10 @@ Validation:
   batch_size: 4
   data:
     image:
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/images
-      suffix: .png
+      files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
     label:
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/segmentations
-      suffix: .png
+      files: /ABSOLUTE/PATH/TO/OCTA-500/segmentations/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
   data_augmentation:
     - name: LoadImaged
@@ -189,11 +184,10 @@ Test:
   batch_size: 1
   data:
     image:
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/images
+      files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/test_0.txt
-      # folder: /ABSOLUTE/PATH/TO/ROSE-1/images
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
       # split: /ABSOLUTE/PATH/TO/ROSE-1/test_0.txt
-      suffix: .png
   num_samples: 10
   save_comparisons: false
   data_augmentation:

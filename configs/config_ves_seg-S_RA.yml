@@ -14,14 +14,11 @@ General:
 Train:
   data:
     image:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
-      suffix: .csv
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
     label:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
-      suffix: .csv
-    deep:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/DEEP/CSV/FOLDER
-      suffix: .png
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
+    background:
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/BACKGROUND/FOLDER/**/*.png
   epochs: 30
   epochs_decay: 10
   val_interval: 1
@@ -33,7 +30,7 @@ Train:
   data_augmentation:
     - name: LoadImaged
       keys:
-      - deep
+      - background
       image_only: true
     - name: LoadGraphAndFilterByRandomRadiusd
       keys:
@@ -48,19 +45,19 @@ Train:
       keys:
       - image
       - label
-      - deep
+      - background
       minv: 0
       maxv: 1
     - name: EnsureChannelFirstd
       keys:
       - image
       - label
-      - deep
+      - background
       strict_check: false
       channel_dim: no_channel
     - name: Resized
       keys:
-      - deep
+      - background
       spatial_size:
       - 304
       - 304
@@ -120,18 +117,16 @@ Validation:
   batch_size: 4
   data:
     image:
-      folder: /home/lkreitner/OCTA-seg/datasets/OCTA-500/images
-      # folder: /home/lkreitner/OCTA-seg/datasets/ROSE-1/images
-      # folder: /home/lkreitner/OCTA-seg/datasets/Giarratano/original_images
-      suffix: .png
+      files: /home/lkreitner/OCTA-seg/datasets/OCTA-500/images/**/*.png
+      # files: /home/lkreitner/OCTA-seg/datasets/ROSE-1/images/**/*.png
+      # files: /home/lkreitner/OCTA-seg/datasets/Giarratano/original_images/**/*.png
       split: /home/lkreitner/OCTA-seg/datasets/OCTA-500/val_4.txt
       # split: /home/lkreitner/OCTA-seg/datasets/ROSE-1/val_4.txt
       # split: /home/lkreitner/OCTA-seg/datasets/Giarratano/val_4.txt
     label:
-      folder: /home/lkreitner/OCTA-seg/datasets/OCTA-500/segmentations
-      # folder: /home/lkreitner/OCTA-seg/datasets/ROSE-1/segmentations
-      # folder: /home/lkreitner/OCTA-seg/datasets/Giarratano/segmented_images
-      suffix: .png
+      files: /home/lkreitner/OCTA-seg/datasets/OCTA-500/segmentations/**/*.png
+      # files: /home/lkreitner/OCTA-seg/datasets/ROSE-1/segmentations/**/*.png
+      # files: /home/lkreitner/OCTA-seg/datasets/Giarratano/segmented_images/**/*.png
       split: /home/lkreitner/OCTA-seg/datasets/OCTA-500/val_4.txt
       # split: /home/lkreitner/OCTA-seg/datasets/ROSE-1/val_4.txt
       # split: /home/lkreitner/OCTA-seg/datasets/Giarratano/val_4.txt
@@ -199,11 +194,10 @@ Test:
   batch_size: 1
   data:
     image:
-      folder: /home/lkreitner/OCTA-seg/datasets/OCTA-500/images
+      files: /home/lkreitner/OCTA-seg/datasets/OCTA-500/images/**/*.png
       spilt: /home/lkreitner/OCTA-seg/datasets/OCTA-500/test_0.txt
-      # folder: /home/lkreitner/OCTA-seg/datasets/ROSE-1/images
+      # files: /home/lkreitner/OCTA-seg/datasets/ROSE-1/images/**/*.png
       # spilt: /home/lkreitner/OCTA-seg/datasets/ROSE-1/test_0.txt
-      suffix: .png
   num_samples: 10
   save_comparisons: false
   data_augmentation:

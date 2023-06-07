@@ -85,7 +85,7 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
             )
             optimizer.zero_grad()
             if config["Train"].get("AT"):
-                inputs_at, reg = at(model, inputs, batch_data["deep"].to(device), labels)
+                inputs_at, reg = at(model, inputs, batch_data["background"].to(device), labels)
                 inputs = torch.cat((inputs_at, inputs), dim=0)
                 labels = torch.tile(labels, (2,1,1,1))
             else:

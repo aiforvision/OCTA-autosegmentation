@@ -7,7 +7,8 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from data.image_dataset import get_custom_file_paths
+from glob import glob
+from natsort import natsorted
 from PIL import Image
 from tqdm import tqdm
 from vessel_graph_generation.tree2img import rasterize_forest
@@ -23,7 +24,7 @@ if __name__ == "__main__":
     if not os.path.exists(args.out_dir):
         os.makedirs(args.out_dir)
 
-    csv_files = get_custom_file_paths(args.source_dir, ".csv")
+    csv_files = natsorted(glob(os.path.join(args.source_dir, "**", "*.csv"), recursive=True))
     for file_path in tqdm(csv_files, desc="Visualizing images..."):
         name = file_path.split("/")[-1].removesuffix(".csv")
         f: list[dict] = list()

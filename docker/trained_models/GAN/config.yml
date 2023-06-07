@@ -42,17 +42,15 @@ Output:
 Test:
   batch_size: 1
   data:
-    deep:
-      folder: /home/OCTA-seg/datasets/background_images
-      suffix: .png
+    background:
+      files: /home/OCTA-seg/datasets/background_images/**/*.png
     real_A:
-      folder: /var/generation/vessel_graphs
-      suffix: .csv
+      files: /var/generation/vessel_graphs/**/*.csv
   data_augmentation:
   - allow_missing_keys: true
     image_only: true
     keys:
-    - deep
+    - background
     name: LoadImaged
   - allow_missing_keys: true
     image_scales:
@@ -63,7 +61,7 @@ Test:
   - allow_missing_keys: true
     keys:
     - real_A
-    - deep
+    - background
     maxv: 1
     minv: 0
     name: ScaleIntensityd
@@ -71,17 +69,17 @@ Test:
     channel_dim: no_channel
     keys:
     - real_A
-    - deep
+    - background
     name: EnsureChannelFirstd
     strict_check: false
   - allow_missing_keys: true
     k: 1
     keys:
-    - deep
+    - background
     name: Rotate90d
   - allow_missing_keys: true
     keys:
-    - deep
+    - background
     name: Flipd
     spatial_axis: 0
   - keys:

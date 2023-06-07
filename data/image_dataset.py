@@ -1,25 +1,16 @@
 from monai.data import DataLoader, Dataset
 from data.data_transforms import *
-import os
 from numpy import array
 import torch
 import numpy as np
+from glob import glob
+from natsort import natsorted
 
 from monai.data.meta_obj import set_track_meta
 
 from utils.metrics import Task
 from data.unalignedZipDataset import UnalignedZipDataset
 set_track_meta(False)
-
-def get_custom_file_paths(folder: str, name: str) -> list[str]:
-    image_file_paths = []
-    for root, _, filenames in os.walk(folder):
-        filenames: list[str] = sorted(filenames)
-        for filename in filenames:
-            if filename.lower().endswith(name.lower()):
-                file_path = os.path.join(root, filename)
-                image_file_paths.append(file_path)
-    return image_file_paths
 
 def _get_transformation(config, task: Task, phase: str, dtype=torch.float32) -> Compose:
     """
@@ -33,10 +24,20 @@ def _get_transformation(config, task: Task, phase: str, dtype=torch.float32) -> 
 
 def get_post_transformation(config: dict, phase: str) -> tuple[Compose]:
     """
-    Create and return the data transformation that is applied to the model prediction before inference.
+    Create and return the data transformation that is applied to the label and the model prediction before inference.
     """
     aug_config: dict = config[phase.capitalize()]["post_processing"]
-    return Compose(get_data_augmentations(aug_config.get("prediction"))), Compose(get_data_augmentations(aug_config.get("label")))
+    try:
+        pred_aug = Compose(get_data_augmentations(aug_config.get("prediction")))
+    except Exception as e:
+        print("Error: Your provided data augmentations for prediction are invalid.\n")
+        raise e
+    try:
+        label_aug = Compose(get_data_augmentations(aug_config.get("label")))
+    except Exception as e:
+        print("Error: Your provided data augmentations for label are invalid.\n")
+        raise e
+    return pred_aug, label_aug
 
 
 def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoader:
@@ -49,12 +50,13 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoa
     data_settings: dict = config[phase.capitalize()]["data"]
     data = dict()
     for key, val in data_settings.items():
-        paths  = get_custom_file_paths(val["folder"], val["suffix"])
-        paths.sort()
+        paths = natsorted(glob(val["files"], recursive=True))
+        assert len(paths)>0, f"Error: Your provided file path {val['files']} for {key} does not match any files!"
         if "split" in val:
             with open(val["split"], 'r') as f:
                 lines = f.readlines()
                 indices = [int(line.rstrip()) for line in lines]
+                assert max(indices)<len(paths), f"Error: Your provided split file for {key} does not seem to match your dataset! The index {max(indices)} was requested but the dataset only contains {len(paths)} files."
                 paths = array(paths)[indices].tolist()
         data[key] = paths
         data[key+"_path"] = paths

@@ -23,18 +23,14 @@ General:
 Train:
   data:
     real_B:
-      folder: /ABSOLUTE/PATH/TO/REAL/OCTA/FOLDER
-      suffix: .png
+      files: /ABSOLUTE/PATH/TO/REAL/OCTA/FOLDER/**/*.png
       # split: Optional: /PATH/TO/YOUR/INDEX/FILE
     real_A:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
-      suffix: .csv
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
     real_A_seg:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
-      suffix: .csv
-    deep:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/DEEP/CSV/FOLDER
-      suffix: .png
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
+    background:
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/BACKGROUND/FOLDER/**/*.png
   epochs: 150
   epochs_decay: 0
   save_interval: 25
@@ -46,7 +42,7 @@ Train:
     - name: LoadImaged
       keys:
       - real_B
-      - deep
+      - background
       image_only: true
     - name: ToGrayScaled
       keys:
@@ -64,12 +60,12 @@ Train:
       - real_A
       - real_B
       - real_A_seg
-      - deep
+      - background
       strict_check: false
       channel_dim: no_channel
     - name: Resized
       keys:
-      - deep
+      - background
       - real_B
       spatial_size:
       - 304
@@ -82,7 +78,7 @@ Train:
       - real_A
       - real_B
       - real_A_seg
-      - deep
+      - background
       minv: 0
       maxv: 1
     - name: RandFlipd
@@ -90,7 +86,7 @@ Train:
       - real_A
       - real_B
       - real_A_seg
-      - deep
+      - background
       prob: 0.5
       spatial_axis:
       - 0
@@ -100,14 +96,14 @@ Train:
       - real_A
       - real_B
       - real_A_seg
-      - deep
+      - background
       prob: 0.75
     - name: RandRotated
       keys:
       - real_A
       - real_B
       - real_A_seg
-      - deep
+      - background
       prob: 1
       range_x: 0.17453292519943295
       padding_mode: zeros
@@ -144,21 +140,18 @@ Test:
   batch_size: 1
   data:
     real_B:
-      folder: /ABSOLUTE/PATH/TO/REAL/OCTA/FOLDER
-      suffix: .png
+      files: /ABSOLUTE/PATH/TO/REAL/OCTA/FOLDER/**/*.png
     real_A:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
-      suffix: .csv
-    deep:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/DEEP/CSV/FOLDER
-      suffix: .png
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
+    background:
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/BACKGROUND/FOLDER/**/*.png
   num_samples: 5
   save_comparisons: false
   data_augmentation:
     - name: LoadImaged
       keys:
       - real_B
-      - deep
+      - background
       allow_missing_keys: true
       image_only: true
     - allow_missing_keys: true
@@ -174,7 +167,7 @@ Test:
       keys:
       - real_A
       - real_B
-      - deep
+      - background
       allow_missing_keys: true
       minv: 0
       maxv: 1
@@ -182,7 +175,7 @@ Test:
       keys:
       - real_A
       - real_B
-      - deep
+      - background
       allow_missing_keys: true
       channel_dim: no_channel
       strict_check: false
@@ -190,13 +183,13 @@ Test:
       allow_missing_keys: true
       keys:
       - real_B
-      - deep
+      - background
       k: 1
     - name: Flipd
       allow_missing_keys: true
       keys:
       - real_B
-      - deep
+      - background
       spatial_axis: 0
     - name: AddRandomBackgroundNoised
       keys:

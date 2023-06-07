@@ -67,12 +67,12 @@ def initialize_model_and_optimizer(model: torch.nn.Module, config: dict, args, p
         model.load_state_dict(checkpoint['model'])
         optimizer = torch.optim.Adam(model.parameters(), config["Train"]["lr"], weight_decay=1e-6)
         optimizer.load_state_dict(checkpoint['optimizer'])
-        print("Loaded checkpoint from epoch", checkpoint['epoch'])
+        print("Loaded checkpoint from epoch", checkpoint['epoch']+1)
     elif phase != "train":
         checkpoint = torch.load(model_path, map_location=torch.device(config["General"]["device"]))
         model.load_state_dict(checkpoint['model'])
         optimizer=None
-        print("Loaded checkpoint from epoch", checkpoint['epoch'])
+        print("Loaded checkpoint from epoch", checkpoint['epoch']+1)
     else:
         activation = 'relu' if model._get_name().lower().startswith("resnet") else 'leaky_relu'
         init_weights(model, init_type='kaiming', nonlinearity=activation)

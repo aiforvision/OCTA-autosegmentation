@@ -34,20 +34,16 @@ Train:
 
     # Image files
     image:
-      # Mandatory - Dataset folder. Use absolute paths
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
-      # Mandatory - Suffix of the files to load. Will load all files *.csv from the folder
-      suffix: .csv
+      # Mandatory - Dataset files. Use absolute paths.
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
       # Default: Use all files - Path of a file listing all indices of the files that should be loaded
       split: null
     # Label files
     label:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
-      suffix: .csv
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
       split: null
-    deep:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/DEEP/CSV/FOLDER
-      suffix: .png
+    background:
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/BACKGROUND/FOLDER/**/*.png
   # Mandatory - Number of epochs to train
   epochs: 30
   # Default: 0 - Number of epochs to linearly decay learning rate
@@ -73,7 +69,7 @@ Train:
     - name: LoadImaged
       # Mandatory - List of all items the transform should be applied to.
       keys:
-      - deep
+      - background
       # Other parameters...
       image_only: true
     - name: LoadGraphAndFilterByRandomRadiusd
@@ -87,14 +83,14 @@ Train:
       keys:
       - image
       - label
-      - deep
+      - background
       minv: 0
       maxv: 1
     - name: EnsureChannelFirstd
       keys:
       - image
       - label
-      - deep
+      - background
       strict_check: false
       channel_dim: no_channel
     - name: Resized
@@ -107,7 +103,7 @@ Train:
       mode: bilinear
     - name: Resized
       keys:
-      - deep
+      - background
       spatial_size:
       - 304
       - 304
@@ -173,12 +169,10 @@ Validation:
   batch_size: 4
   data:
     image:
-      suffix: .png
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/images
+      files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
     label:
-      suffix: .png
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/segmentations
+      files: /ABSOLUTE/PATH/TO/OCTA-500/segmentations/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
   data_augmentation:
     - name: LoadImaged
@@ -241,8 +235,7 @@ Test:
   batch_size: 1
   data:
     image:
-      suffix: .png
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/images
+      files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
   # Default: Infinity - Maximum number of samples used for inference
   num_samples: 10
@@ -302,7 +295,7 @@ Test:
 Output:
   # Mandatory - Save directory to store checkpoints, training details, etc.
   save_dir: /ABSOLUTE/PATH/TO/results/template/
-  # Mandatory - If true, store example images during training as images in the save folder.
+  # Mandatory - If true, store example images during training as images in the save files.
   save_to_disk: true
   # Mandatory - If true, store example images during training in tensorboard
   save_to_tensorboard: true

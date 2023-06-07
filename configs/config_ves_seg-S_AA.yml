@@ -14,14 +14,11 @@ General:
 Train:
   data:
     image:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
-      suffix: .csv
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
     label:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER
-      suffix: .csv
-    deep:
-      folder: /ABSOLUTE/PATH/TO/SYNTHETIC/DEEP/CSV/FOLDER
-      suffix: .png
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
+    background:
+      files: /ABSOLUTE/PATH/TO/SYNTHETIC/BACKGROUND/FOLDER/**/*.png
   epochs: 30
   epochs_decay: 10
   val_interval: 1
@@ -33,7 +30,7 @@ Train:
   data_augmentation:
     - name: LoadImaged
       keys:
-      - deep
+      - background
       image_only: true
     - name: LoadGraphAndFilterByRandomRadiusd
       keys:
@@ -48,20 +45,20 @@ Train:
       keys:
       - image
       - label
-      - deep
+      - background
       minv: 0
       maxv: 1
     - name: EnsureChannelFirstd
       keys:
       - image
       - label
-      - deep
+      - background
       strict_check: false
       channel_dim: no_channel
       mode: bilinear
     - name: Resized
       keys:
-      - deep
+      - background
       spatial_size:
       - 304
       - 304
@@ -129,21 +126,19 @@ Validation:
   batch_size: 4
   data:
     image:
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/images
-      # folder: /ABSOLUTE/PATH/TO/ROSE-1/images
-      # folder: /ABSOLUTE/PATH/TO/Giarratano/original_images
+      files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
+      # files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
       # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
       # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
-      suffix: .png
     label:
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/segmentations
-      # folder: /ABSOLUTE/PATH/TO/ROSE-1/segmentations
-      # folder: /ABSOLUTE/PATH/TO/Giarratano/segmented_images
+      files: /ABSOLUTE/PATH/TO/OCTA-500/segmentations/**/*.png
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/segmentations/**/*.png
+      # files: /ABSOLUTE/PATH/TO/Giarratano/segmented_images/**/*.png
       split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
       # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
       # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
-      suffix: .png
   data_augmentation:
     - name: LoadImaged
       keys:
@@ -212,12 +207,11 @@ Test:
   batch_size: 1
   data:
     image:
-      folder: /ABSOLUTE/PATH/TO/OCTA-500/images
+      files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
       spilt: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
 
-      # folder: /ABSOLUTE/PATH/TO/ROSE-1/images
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
       # spilt: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
-      suffix: .png
   num_samples: 10
   save_comparisons: false
   data_augmentation:

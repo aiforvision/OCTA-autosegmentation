@@ -115,9 +115,9 @@ class ANTLoss(torch.nn.Module):
         self.scaler = scaler
         self.loss_fun = loss_fun
 
-    def forward(self, model: torch.nn.Module, x: torch.Tensor, deep: torch.Tensor, y: torch.Tensor):
+    def forward(self, model: torch.nn.Module, x: torch.Tensor, background: torch.Tensor, y: torch.Tensor):
         model.eval()
-        adv_sample = self.noise_model.forward(x, deep, False)
+        adv_sample = self.noise_model.forward(x, background, False)
         loss_trajectory = []
         for i in range(3):
             with torch.cuda.amp.autocast():
@@ -126,7 +126,7 @@ class ANTLoss(torch.nn.Module):
                 loss_trajectory.append(loss.item())
             self.scaler.scale(loss).backward()
             # with torch.cuda.amp.autocast():
-            adv_sample = self.noise_model.forward(x, deep, True)
+            adv_sample = self.noise_model.forward(x, background, True)
         model.train()
         return adv_sample.detach(), 0
 
