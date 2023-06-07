@@ -29,7 +29,8 @@ with open(path, "r") as stream:
         config: dict[str,dict] = json.load(stream)
     else:
         config: dict[str,dict] = yaml.safe_load(stream)
-set_determinism(seed=config["General"]["seed"])
+if config["General"].get("seed") is not None:
+    set_determinism(seed=config["General"]["seed"])
 
 inference_suffix = "_"+config["General"]["inference"] if "inference" in config["General"] else ""
 save_dir = config["Test"].get("save_dir") or config["Output"]["save_dir"]+"/test"
