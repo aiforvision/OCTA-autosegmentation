@@ -2,6 +2,7 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 from math import sqrt
+from typing import Tuple
 
 from vessel_graph_generation.forest import Forest
 from vessel_graph_generation.simulation_space import SimulationSpace
@@ -15,18 +16,18 @@ class Greenhouse():
 
     def __init__(self, config: dict):
         self.config = config
-        self.modes = config['modes']
+        self.modes: list[dict] = config['modes']
         
         self.sigma_t: float = 1
         self.param_scale: float = config['param_scale']
         self.d: float = config['d'] / self.param_scale
         self.r: float = config['r'] / self.param_scale
-        self.create_simulation_space(config[self.modes[0]]["SimulationSpace"])
         self.FAZ_radius = np.random.normal(config['FAZ_radius_bound'][0] / self.param_scale, config['FAZ_radius_bound'][1] / self.param_scale)
-        self.rotation_radius = config['rotation_radius'] / self.param_scale
-        self.FAZ_center = config['FAZ_center']
+        self.rotation_radius: float = config['rotation_radius'] / self.param_scale
+        self.FAZ_center: Tuple[float, float] = config['FAZ_center']
+        self.simspace = SimulationSpace(config["SimulationSpace"], self.FAZ_center, self.FAZ_radius)
 
-        self.init_params_from_config(self.config[self.modes[0]])
+        self.init_params_from_config(self.modes[0])
 
     def init_params_from_config(self, config: dict):
         self.I: int = config['I']
@@ -45,11 +46,7 @@ class Greenhouse():
         self.sigma_t: float = 1
         
         self.orig_scale = [param / self.param_scale for param in [self.eps_k, self.eps_n, self.eps_s, self.delta_art, self.delta_ven]]
-        if not hasattr(self, 'simspace'):
-            self.create_simulation_space(config["SimulationSpace"])
-
-    def create_simulation_space(self, simspace_config: dict):
-        self.simspace = SimulationSpace(simspace_config)
+        self.orig_scale.append(self.d)
 
     def set_forests(self, arterialForest: Forest, venousForest: Forest = None):
         self.arterial_forest = arterialForest
@@ -57,7 +54,7 @@ class Greenhouse():
 
     def develop_forest(self):
         """
-        Generates the arterial (and venous) blood vessel forest
+        Main loop. Generates the arterial (and venous) blood vessel forest
         """
         self.art_node_mesh = NodeKdTree()
         self.art_node_mesh.extend(list(self.arterial_forest.get_nodes()))
@@ -82,11 +79,10 @@ class Greenhouse():
         t = 0
         # mbar = tqdm(self.modes)
         for mode in self.modes:
-            if mode != self.modes[0]:
-                self.init_params_from_config(self.config[mode])
+            if mode["name"] != self.modes[0]["name"]:
+                self.init_params_from_config(mode)
             if self.I<=0:
                 continue
-
 
             # pbar = tqdm(range(t,t+self.I), desc=f'[{mode}] Art: {self.art_nodes_per_step[-1]},Oxy: {self.oxys_per_step[-1]}, Ven: {self.ven_nodes_per_step[-1]}, Co2: {self.co2_per_step[-1]}')
             for t in range(t,t+self.I):
@@ -124,23 +120,10 @@ class Greenhouse():
                         to_remove.update(self.co2_mesh.find_elements_in_distance(node.position, self.eps_k))
                     self.co2_mesh.delete_all(to_remove)
                 # 6. Scaling
-                # scaling factor at time t: σ_t = σ_t−1 +∆σ
-                self.sigma_t = self.sigma_t + self.delta_sigma
-                self.eps_k, self.eps_n, self.eps_s, self.delta_art, self.delta_ven = [param / self.sigma_t for param in self.orig_scale]
-                if mode == self.modes[0]:# and self.sigma_t<=2:
-                    self.d = self.d * (self.sigma_t - self.delta_sigma) / self.sigma_t
-                    self.d = max(self.d, 0.04/self.param_scale)
-                
-                self.art_node_mesh.reassign(self.delta_art)
-                self.active_art_node_mesh.reassign(self.delta_art)
-                self.oxy_mesh.reassign(self.delta_art)
-                if self.venous_forest is not None:
-                    self.ven_node_mesh.reassign(self.delta_ven)
-                    self.active_ven_node_mesh.reassign(self.delta_ven)
-                    self.co2_mesh.reassign(self.delta_ven)
+                self.simulation_space_expansion()
 
+                # Update stats
                 self.time_per_step.append(time.time()-s)
-
                 self.art_nodes_per_step.append(len(self.art_node_mesh.get_all_elements()))
                 self.oxys_per_step.append(len(self.oxy_mesh.get_all_elements()))
 
@@ -151,43 +134,24 @@ class Greenhouse():
                 # else:
                 #     pbar.set_description(f'[{mode}] Art: {self.art_nodes_per_step[-1]}, Oxy: {self.oxys_per_step[-1]}')
 
-    def save_stats(self, out_dir: str):
-        plt.figure(figsize=(6,6))
-        oxys = np.array(self.oxy_mesh.get_all_elements())
-        plt.plot(oxys[:,1], 1-oxys[:,0], 'r.')
-        plt.title('Final Oxygen Sink Distribution')
-        plt.savefig(f'{out_dir}/oxy_distribution.png', bbox_inches='tight')
-        plt.cla()
-
-        co2s = np.array(self.co2_mesh.get_all_elements())
-        plt.plot(co2s[:,1], 1-co2s[:,0], 'b.')
-        plt.title('Final CO₂ Sink Distribution')
-        plt.savefig(f'{out_dir}/co2_distribution.png', bbox_inches='tight')
-        plt.cla()
-
-        plt.plot(self.time_per_step)
-        total = time.strftime('%H:%M:%S', time.gmtime(sum(self.time_per_step)))
-        plt.title(f'Runtime Per Iteration (Total={total})')
-        plt.xlabel("Iterations")
-        plt.ylabel("Seconds")
-        plt.savefig(f'{out_dir}/time_per_step.png', bbox_inches='tight')
-        plt.cla()
-
-
-        plt.plot(self.art_nodes_per_step)
-        plt.plot(self.oxys_per_step)
+    def simulation_space_expansion(self):
+        """
+        Scales all distance related parameters to simulate the expansion of the simulation space.
+        This is motivated by the growth of tissue in real life.
+        """
+        # scaling factor at time t: σ_t = σ_t−1 +∆σ
+        self.sigma_t = self.sigma_t + self.delta_sigma
+        self.eps_k, self.eps_n, self.eps_s, self.delta_art, self.delta_ven, self.d = [param / self.sigma_t for param in self.orig_scale]
+        self.d = max(self.d, 0.04/self.param_scale)
+        
+        self.art_node_mesh.reassign(self.delta_art)
+        self.active_art_node_mesh.reassign(self.delta_art)
+        self.oxy_mesh.reassign(self.delta_art)
         if self.venous_forest is not None:
-            plt.plot(self.ven_nodes_per_step)
-            plt.plot(self.co2_per_step)
-            plt.legend(['Arterial Nodes', 'Oxygen Sinks', 'Venous Nodes', 'CO₂ Sources'])
-        else:
-            plt.legend(['Nodes', 'Oxygen Sinks'])
-        plt.title('Growth Over Time')
-        plt.xlabel('Iterations')
-        plt.ylabel('Amount')
-        plt.savefig('growth_over_time', bbox_inches='tight')
-        plt.close()
-
+            self.ven_node_mesh.reassign(self.delta_ven)
+            self.active_ven_node_mesh.reassign(self.delta_ven)
+            self.co2_mesh.reassign(self.delta_ven)
+    
     def grow_vessels(self, node_mesh: SpacePartitioner[Node], att_mesh: SpacePartitioner, gamma: float, delta: float, first_mode=True, t=0) -> list[Node]:
         """
         Performs arterial or venous vessel growth
@@ -341,7 +305,10 @@ class Greenhouse():
                 node_mesh.delete(node)
         return new_nodes
 
-    def _calculate_oxygen_distance(self, r):
+    def _calculate_oxygen_distance(self, r): 
+        """
+        Models the oxygen concentration heuristic by Schneider et al., 2012 (https://doi.org/10.1016/j.media.2012.04.009)
+        """
         c_oxygen = 203.9e-3 # oxygen concentration inside vessel lumen in m^3 per m^3
         kappa = 0.02 * c_oxygen # peak perfusion level in simulation space
         r0 = 3.5e-3 # vessel radius perfusing maximum amount of oxygen in mm
@@ -364,16 +331,7 @@ class Greenhouse():
         List of 3D coordinates of valid oxygen sinks
         """
         to_add = list()
-        candidate_voxels = self.simspace.valid_voxels[np.random.randint(0,len(self.simspace.valid_voxels), N)]
-        candidate_sinks = self.arterial_forest.sim_voxs_2_tree_poss(candidate_voxels)
-        if self.FAZ_radius>0:
-            dist_to_center = np.linalg.norm(np.array(self.FAZ_center) - candidate_sinks[:,:2], axis=1)
-            dist_to_center = (dist_to_center / self.FAZ_radius)
-            # if t>15:
-            prob = 0.5#np.random.uniform(0,1, dist_to_center.shape)
-            # else:
-            #     prob = 0.5
-            candidate_sinks = candidate_sinks[dist_to_center>prob]
+        candidate_sinks = self.simspace.get_candidate_sinks(N)
         for candidate_sink in candidate_sinks:
             if all([eukledian_dist(candidate_sink, node.position) > self._calculate_oxygen_distance(node.radius) for node in self.art_node_mesh.find_elements_in_distance(candidate_sink, eps_n)]) \
                 and self.oxy_mesh.find_nearest_element(candidate_sink, eps_s) is None \
@@ -439,3 +397,38 @@ class Greenhouse():
                 ax.set_box_aspect((size_x, size_y, size_z))
         plt.savefig(output_path, bbox_inches="tight")
             
+    def save_stats(self, out_dir: str):
+        plt.figure(figsize=(6,6))
+        oxys = np.array(self.oxy_mesh.get_all_elements())
+        plt.plot(oxys[:,1], 1-oxys[:,0], 'r.')
+        plt.title('Final Oxygen Sink Distribution')
+        plt.savefig(f'{out_dir}/oxy_distribution.png', bbox_inches='tight')
+        plt.cla()
+
+        co2s = np.array(self.co2_mesh.get_all_elements())
+        plt.plot(co2s[:,1], 1-co2s[:,0], 'b.')
+        plt.title('Final CO₂ Sink Distribution')
+        plt.savefig(f'{out_dir}/co2_distribution.png', bbox_inches='tight')
+        plt.cla()
+
+        plt.plot(self.time_per_step)
+        total = time.strftime('%H:%M:%S', time.gmtime(sum(self.time_per_step)))
+        plt.title(f'Runtime Per Iteration (Total={total})')
+        plt.xlabel("Iterations")
+        plt.ylabel("Seconds")
+        plt.savefig(f'{out_dir}/time_per_step.png', bbox_inches='tight')
+        plt.cla()
+
+        plt.plot(self.art_nodes_per_step)
+        plt.plot(self.oxys_per_step)
+        if self.venous_forest is not None:
+            plt.plot(self.ven_nodes_per_step)
+            plt.plot(self.co2_per_step)
+            plt.legend(['Arterial Nodes', 'Oxygen Sinks', 'Venous Nodes', 'CO₂ Sources'])
+        else:
+            plt.legend(['Nodes', 'Oxygen Sinks'])
+        plt.title('Growth Over Time')
+        plt.xlabel('Iterations')
+        plt.ylabel('Amount')
+        plt.savefig(f'{out_dir}/growth_over_time.png', bbox_inches='tight')
+        plt.close()

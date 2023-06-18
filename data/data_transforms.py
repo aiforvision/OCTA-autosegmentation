@@ -1,5 +1,4 @@
 import torch
-import math
 import random
 from PIL import Image
 from models.noise_model import NoiseModel
@@ -10,7 +9,6 @@ from monai.transforms import *
 from monai.config import KeysCollection
 from vessel_graph_generation.tree2img import rasterize_forest
 from models.networks import MODEL_DICT
-from typing import Union
 
 class SpeckleBrightnesd(MapTransform):
     """
@@ -53,11 +51,12 @@ class LoadGraphAndFilterByRandomRadiusd(MapTransform):
     """
     Given a graph csv file, only load edges with radius larger than the given threshold. Then, turn the graph into a grayscale image of the given shape.
     """
-    def __init__(self, keys: KeysCollection, allow_missing_keys: bool = False, image_scales=[4], min_radius=[0], max_dropout_prob=0) -> None:
+    def __init__(self, keys: KeysCollection, allow_missing_keys: bool = False, image_resolutions=[[304,304]], min_radius=[0], max_dropout_prob=0, MIP_axis = 2) -> None:
         super().__init__(keys, allow_missing_keys)
         self.min_radius = min_radius
-        self.image_scales = image_scales
+        self.image_resolutions = image_resolutions
         self.max_dropout_prob = max_dropout_prob
+        self.MIP_axis = MIP_axis
 
     def __call__(self, data):
         blackdict = None
@@ -67,7 +66,7 @@ class LoadGraphAndFilterByRandomRadiusd(MapTransform):
                 reader = csv.DictReader(csvfile)
                 for row in reader:
                     f.append(row)
-            img, blackdict = rasterize_forest(f, self.image_scales[i], [], min_radius=self.min_radius[i], max_dropout_prob=self.max_dropout_prob, blackdict=blackdict)
+            img, blackdict = rasterize_forest(f, self.image_resolutions[i], self.MIP_axis, min_radius=self.min_radius[i], max_dropout_prob=self.max_dropout_prob, blackdict=blackdict)
             img_t = torch.tensor(img.astype(np.float32))
             data[key] = img_t
         return data

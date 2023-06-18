@@ -4,6 +4,7 @@ Greenhouse:
     no_voxel_x: 1
     no_voxel_y: 1
     no_voxel_z: 0.0131
+    # oxygen_sample_geometry_path: ./vessel_graph_generation/geometries/slab_oxy_sample_3mm.npy
   d: 0.1
   r: 0.0025
   FAZ_radius_bound:
@@ -44,16 +45,18 @@ Greenhouse:
       kappa: 2.9
       delta_sigma: 0.02
 output:
-  directory: /var/generation/vessel_graphs
+  directory: ./vessel_graph_generation/datasets/dataset_18_June_2023
   image_scale_factor: 304
   save_trees: true
   save_3D_volumes: false
   save_2D_image: true
   proj_axis: 2
-  save_stats: false
+  save_stats: true
 Forest:
   type: stumps
   N_trees: 8
+  nerve_center: [0.43,0.88]
+  nerve_radius: [0.01]
   source_walls:
     x0: true
     x1: true

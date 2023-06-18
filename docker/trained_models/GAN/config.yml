@@ -53,8 +53,8 @@ Test:
     - background
     name: LoadImaged
   - allow_missing_keys: true
-    image_scales:
-    - 4
+    image_resolutions:
+    - [304,304]
     keys:
     - real_A
     name: LoadGraphAndFilterByRandomRadiusd

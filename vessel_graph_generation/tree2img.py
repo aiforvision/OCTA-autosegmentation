@@ -1,6 +1,5 @@
-from typing import Literal
+from typing import Literal, Tuple, Sequence
 from random import random
-from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
 import numpy as np
 from numpy import floor
@@ -8,26 +7,47 @@ from numpy import floor
 import math
 import itertools
 from PIL import Image
-from tqdm import tqdm
 from matplotlib import pyplot as plt, collections, cm
 
-from vessel_graph_generation.forest import Forest
-
-def rasterize_forest(forest: dict,
-                     image_scale_factor: np.ndarray,
-                     radius_list:list=None, 
-                     min_radius=0,
-                     max_radius=1,
+def rasterize_forest(forest: list[dict],
+                     image_resolution: Sequence[float],
+                     MIP_axis: int=2,
+                     radius_list: list=None, 
+                     min_radius: float=0,
+                     max_radius: float=1,
                      max_dropout_prob=0,
                      blackdict: dict[str, bool]=None,
-                     colorize=False,
-                     continous=True):
-    # initialize canvas with defined image dimensions
-    if not radius_list:
+                     colorize: str=None) -> Tuple[np.ndarray, dict[str, bool]]:
+    """
+    Converts the given 3D forest into a 2D (grayscale) image.
+    Antialiased drawing of the tree edges is performed by matplotlib.
+
+    Parameters:
+    -----------
+        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'.
+        - image_resolution: Dimensions of the final 2D image
+        - MIP_axis: Axis along which to take the maximum intensity projection. Default is the z dimension
+        - radius_list: A list to collect all edge radii. Default is None
+        - min_radius: All edges with radius smaller than this will not be included in the grayscale image
+        - max_radius: All edges with radius larger than this will not be included in the grayscale image
+        - max_dropout_prob: Maximum probablity with which an edge and its decendents are dropped. 
+                            The probabily is sampled from :math:`p = P**10, P ~ Uniform(0,max_dropout_prob)`
+        - blackdict: A dictionary containing all parent nodes that were removed in the paired image.
+                    All edges from these nodes will be dropped. If a dictionary is provided, no other edges will be removed.
+        - colorize: If set, an RGB image will be returned where the vessels are colorized depending on their radius.
+                    - 'continuos': Continously colorize the vessels using the 'plasma' colormap.
+                    - 'discrete': Divide the vessel radii into three intervals.
+
+    Returns:
+    -------
+        - 2D image of all vessels. RGB if colorized, else grayscale
+        - backlist dictionary containing all parent nodes that were dropped 
+    """
+    axes = [a for a in [0,1,2] if a!=MIP_axis]
+    if radius_list is None:
         radius_list=[]
-    size_x = 1
-    image_dim = tuple([math.ceil(image_scale_factor * d) for d in [76,76]])
-    no_pixels_x, no_pixels_y = image_dim
+    no_pixels_x, no_pixels_y = image_resolution
+    scale_factor = max(no_pixels_x, no_pixels_y)
     dpi = 100
     x_inch = no_pixels_x / dpi
     y_inch = no_pixels_y / dpi
@@ -47,36 +67,36 @@ def rasterize_forest(forest: dict,
         if radius<min_radius or radius>max_radius:
             continue
         radius *= 1.3
-        current_node = edge["node1"]
-        proximal_node = edge["node2"]
 
-        if isinstance(current_node, np.ndarray) or isinstance(current_node, list):
-            current_node = tuple(current_node)
-            proximal_node = tuple(proximal_node)
-        elif isinstance(current_node, str):
+        if isinstance(edge["node1"], np.ndarray) or isinstance(edge["node1"], list):
+            current_node = tuple(edge["node1"])
+            proximal_node = tuple(edge["node2"])
+        elif isinstance(edge["node1"], str):
             # Legacy
-            current_node = tuple([float(coord) for coord in current_node[1:-1].split(" ") if len(coord)>0])
-            proximal_node = tuple([float(coord) for coord in proximal_node[1:-1].split(" ") if len(coord)>0])
+            current_node = tuple([float(coord) for coord in edge["node1"][1:-1].split(" ") if len(coord)>0])
+            proximal_node = tuple([float(coord) for coord in edge["node2"][1:-1].split(" ") if len(coord)>0])
 
         if proximal_node in blackdict or random()<p:
             blackdict[current_node] = True
             continue
 
         radius_list.append(radius)
-        thickness = radius * no_pixels_x
-        edges.append([(current_node[1],current_node[0]),(proximal_node[1],proximal_node[0])])
+        thickness = radius * scale_factor
+        edges.append([(current_node[axes[1]],current_node[axes[0]]),(proximal_node[axes[1]],proximal_node[axes[0]])])
         radii.append(thickness)
-    if colorize:
+    if colorize is not None:
         colors=np.copy(np.array(radii))
         colors = colors/no_pixels_x/1.3*3
-        if continous:
+        if colorize=="continous":
             colors=np.minimum(colors/0.03,1)
-        else:
+        elif colorize=="dicrete":
             c_new = np.zeros_like(colors)
             c_new[colors<=0.01]=0.1
             c_new[(colors>0.01) & (colors<=0.02)]=0.5
             c_new[colors>0.02]=1
             colors=c_new
+        else:
+            raise NotImplementedError("Colorize only supports the options 'continous' or 'discrete'!")
         colors=cm.plasma(colors)
     else:
         colors="w"
@@ -92,88 +112,7 @@ def rasterize_forest(forest: dict,
         img_gray = np.array(Image.fromarray(img).convert("L")).astype(np.uint16)
     return img_gray, blackdict
 
-def rasterize_forest_3D(forest: dict, image_scale_factor: np.ndarray, radius_list:list=None, min_radius=0, max_radius=1, blackdict: dict[str, bool]=None):
-    # initialize canvas with defined image dimensions
-    size_x = 1
-    image_dim = tuple([math.ceil(image_scale_factor * d) for d in [76,76]])
-    no_pixels_x, no_pixels_y = image_dim
-    voxel_size_x = size_x / (no_pixels_x)
-    dpi = 100
-    x_inch = no_pixels_x*1.8 / dpi
-    y_inch = no_pixels_y*1.8 / dpi
-    plt.style.use('dark_background') # Dark theme
-    figure = plt.figure(figsize=(x_inch,y_inch))
-    figure.patch.set_facecolor('black')
-    ax = plt.axes([0., 0., 1., 1], xticks=[], yticks=[], projection='3d', elev=50, azim=10)
-    # ax.invert_yaxis()
-    # Make panes transparent
-    ax.xaxis.pane.fill = False # Left pane
-    ax.yaxis.pane.fill = False # Right pane
-
-    # Remove grid lines
-    ax.grid(False)
-
-    # Remove tick labels
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-    ax.set_zticklabels([])
-
-    # Transparent spines
-    ax.w_xaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
-    ax.w_yaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
-    ax.w_zaxis.line.set_color((1.0, 1.0, 1.0, 0.0))
-
-    # Transparent panes
-    ax.w_xaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-    ax.w_yaxis.set_pane_color((1.0, 1.0, 1.0, 0.0))
-
-    # No ticks
-    ax.set_xticks([]) 
-    ax.set_yticks([]) 
-    ax.set_zticks([])
-
-    # Remove the axis
-    plt.axis('off')
-
-    edges = []
-    radii = []
-    if blackdict is None:
-        blackdict = dict()
-        # p = random.random()**10 * 0.02
-        p=0
-    else:
-        p=0
-    for edge in forest:
-        radius = float(edge["radius"])
-        if radius<min_radius or radius>max_radius:
-            continue
-        radius *= 1.3
-        current_node = edge["node1"]
-        proximal_node = edge["node2"]
-        if isinstance(current_node, np.ndarray) or isinstance(current_node, list):
-            current_node = tuple(current_node)
-            proximal_node = tuple(proximal_node)
-        elif isinstance(current_node, str):
-            # Legacy
-            current_node = tuple([float(coord) for coord in current_node[1:-1].split(" ") if len(coord)>0])
-            proximal_node = tuple([float(coord) for coord in proximal_node[1:-1].split(" ") if len(coord)>0])
-
-        if proximal_node in blackdict or random()<p:
-            blackdict[current_node] = True
-            continue
-        radius_list.append(radius)
-        thickness = radius / voxel_size_x
-        edges.append([(current_node[0],current_node[1],current_node[2]),(proximal_node[0],proximal_node[1],proximal_node[2])])
-        radii.append(thickness)
-    ax.add_collection(Line3DCollection(edges, linewidths=radii, colors="w", antialiaseds=True, capstyle="round"))
-    figure.canvas.draw()
-    data = np.frombuffer(figure.canvas.tostring_rgb(), dtype=np.uint8)
-    img = data.reshape(figure.canvas.get_width_height()[::-1] + (3,))
-    plt.close(figure)
-    img_gray = np.array(Image.fromarray(img).convert("L"))[195*4:-40*4,70*4:-70*4]
-    return img_gray.astype(np.uint16)
-
-def getCrossSlice(p1: tuple[int], p2: tuple[int], radius: int, voxel_size=1, image_dim=(255, 251, 120), mode: Literal['tube', 'cuboid']='cuboid'):
+def getCrossSlice(p1: tuple[int], p2: tuple[int], radius: int, voxel_size: float=1, image_dim=(255, 251, 120), mode: Literal['tube', 'cuboid']='cuboid'):
     """
     Computes relevant indices in an image tensor that contain the line from p1 to p2 with the given radius.
     
@@ -181,6 +120,7 @@ def getCrossSlice(p1: tuple[int], p2: tuple[int], radius: int, voxel_size=1, ima
         - p1: 3D point in simulation space
         - p2: 3D point in simulation space
         - radius: radius of line in simulation space scale
+        - voxel_size: The voxel size of the rendered image w.r.t. the simulation space
         - image_dim: shape of image tensor in voxels
         - mode: Type of indexing strategy that being used. 'tube' is more precise and better for long lines. 'cuboid' is faster to compute and better for short lines
     """
@@ -232,32 +172,80 @@ def getCrossSlice(p1: tuple[int], p2: tuple[int], radius: int, voxel_size=1, ima
 
     raise NotImplementedError(mode)
 
-def voxelize_forest(forest: dict, image_scale_factor: np.ndarray, radius_list:list=None, min_radius=0, max_radius=1):
-    size_x = 1
-    image_dim = tuple([max(30,math.ceil(image_scale_factor * d)) for d in [76,76,1]])
+def voxelize_forest(forest: dict,
+                    volume_dimensions: Sequence[float],
+                    radius_list:list=None,
+                    min_radius=0,
+                    max_radius=1,
+                    max_dropout_prob=0,
+                    blackdict: dict[str, bool]=None) -> Tuple[np.ndarray, dict[str, bool]]:
+    """
+    Converts the given 3D forest into a 3D (grayscale) volume.
+    Antialiased drawing of the tree edges is performed manually.
+
+    Parameters:
+    -----------
+        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'.
+        - volume_dimensions: Dimensions of the final 3D volume
+        - MIP_axis: Axis along which to take the maximum intensity projection. Default is the z dimension
+        - radius_list: A list to collect all edge radii. Default is None
+        - min_radius: All edges with radius smaller than this will not be included in the grayscale image
+        - max_radius: All edges with radius larger than this will not be included in the grayscale image
+        - max_dropout_prob: Maximum probablity with which an edge and its decendents are dropped. 
+                            The probabily is sampled from :math:`p = P**10, P ~ Uniform(0,max_dropout_prob)`
+        - blackdict: A dictionary containing all parent nodes that were removed in the paired image.
+                    All edges from these nodes will be dropped. If a dictionary is provided, no other edges will be removed.
+
+    Returns:
+    -------
+        - 3D grayscale volume of all rendered vessels.
+        - backlist dictionary containing all parent nodes that were dropped 
+    """
+    MIN_DIM_SIZE=30 # A minimal size of 30 is necessary to consider nodes that accidentally grew outside of the simulation space.
+    image_dim = np.array([max(MIN_DIM_SIZE,d) for d in volume_dimensions])
+    if radius_list is None:
+        radius_list=[]
+    scale_factor = max(image_dim)
+    pos_correction = (image_dim-np.array(volume_dimensions))//2
     no_voxel_x, no_voxel_y, no_voxel_z = image_dim
-    voxel_size_x = size_x / (no_voxel_x)
-    pos_correction = np.array([0,0,10*voxel_size_x])
-    voxel_diag = np.linalg.norm(np.array([voxel_size_x, voxel_size_x, voxel_size_x]))
+    voxel_size = 1
+    voxel_diag = np.linalg.norm(np.array([1, 1, 1]))
 
     img = np.zeros((no_voxel_x, no_voxel_y, no_voxel_z))
-    for edge in tqdm(forest, desc="Voxelizing forest"):
+
+    if blackdict is None:
+        blackdict = dict()
+        p = random()**10 * max_dropout_prob
+    else:
+        p=0
+    for edge in forest:
         radius = float(edge["radius"])
         if radius<min_radius or radius>max_radius:
             continue
-        current_node = edge["node1"]
-        proximal_node = edge["node2"]
-        if not isinstance(edge["node1"], np.ndarray):
-            current_node = [float(coord) for coord in edge["node1"][1:-1].split(" ") if len(coord)>0]
-            proximal_node = [float(coord) for coord in edge["node2"][1:-1].split(" ") if len(coord)>0]
+        
+        if isinstance(edge["node1"], np.ndarray) or isinstance(edge["node1"], list):
+            current_node = tuple(edge["node1"])
+            proximal_node = tuple(edge["node2"])
+        elif isinstance(edge["node1"], str):
+            # Legacy
+            current_node = tuple([float(coord) for coord in edge["node1"][1:-1].split(" ") if len(coord)>0])
+            proximal_node = tuple([float(coord) for coord in edge["node2"][1:-1].split(" ") if len(coord)>0])
+        
+        if proximal_node in blackdict or random()<p:
+            blackdict[current_node] = True
+            continue
         radius_list.append(radius)
 
+        radius *= scale_factor
+        current_node = np.array(current_node)*scale_factor
+        proximal_node = np.array(proximal_node)*scale_factor
+
         voxel_indices = np.array(getCrossSlice(
-            current_node+pos_correction, proximal_node+pos_correction, radius,voxel_size_x, image_dim
+            current_node+pos_correction, proximal_node+pos_correction, radius,voxel_size, image_dim
         ))
         if len(voxel_indices) == 0:
             continue
-        indices = (voxel_indices+.5) * voxel_size_x
+        indices = (voxel_indices+.5) * voxel_size
 
         # Calculate orthogonal projection of each voxel onto segment
         segment_vector = (current_node+pos_correction) - (proximal_node+pos_correction)
@@ -281,18 +269,33 @@ def voxelize_forest(forest: dict, image_scale_factor: np.ndarray, radius_list:li
         inds = voxel_indices.astype(np.uint16).transpose().tolist()
         img[tuple(inds)] = np.maximum(1-((dist - (radius - voxel_diag/2)) / voxel_diag), img[tuple(inds)])
     # img[img>0]=1
+    img=img[pos_correction[0]:pos_correction[0]+volume_dimensions[0],
+            pos_correction[1]:pos_correction[1]+volume_dimensions[1],
+            pos_correction[2]:pos_correction[2]+volume_dimensions[2]]
     img = (255*np.clip(img,0,1))
-    return img.astype(np.uint16)
+    return img.astype(np.uint16), blackdict
 
-def save_2d_projections(img: np.ndarray, out_dir, prefix: str, *, dims=(0,1,2)):
-    for dim in dims:
-        img_proj = np.max(img, dim)
-        Image.fromarray(img_proj.astype(np.uint8)).save(f'{out_dir}/{prefix}.png')
+def save_2d_img(img: np.ndarray, out_dir: str, name: str):
+    """
+    Saves a prevously rendered image at the given folder. 
 
-def save_2d_img(img: np.ndarray, out_dir: str,  prefix: str):
-    Image.fromarray(img.astype(np.uint8)).save(f'{out_dir}/{prefix}.png')
+    Parameters:
+    -----------
+        - img: numpy array of the rendered image. Use the rasterize_forest function to create the image.
+        - out_dir: Path to the output folder
+        - name: Name of the image
+    """
+    Image.fromarray(img.astype(np.uint8)).save(f'{out_dir}/{name}.png')
 
-def plot_vessel_radii(out_dir: str, radius_list: list = []):
+def plot_vessel_radii(out_dir: str, radius_list: list[float] = []):
+    """
+    Creates a histogram of all simulated vessel radii and saves it as an image.
+
+    Parameters:
+    -----------
+        - out_dir: Path to the output folder
+        - radius_list: List of all simulated radii
+    """
     plt.figure()
     bins = np.linspace(min(radius_list), max(radius_list),40)
     plt.xlim([min(radius_list), max(radius_list)])
@@ -305,11 +308,3 @@ def plot_vessel_radii(out_dir: str, radius_list: list = []):
 
     plt.savefig(f"{out_dir}/hist.png", bbox_inches="tight")
     plt.close()
-
-def forest_to_edges(forest: Forest):
-    edges = [{
-            "node1": current_node.position,
-            "node2": current_node.get_proximal_node().position,
-            "radius": current_node.radius
-        } for tree in forest.get_trees() for current_node in tree.get_tree_iterator(exclude_root=True, only_active=False)]
-    return edges

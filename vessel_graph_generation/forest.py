@@ -12,61 +12,55 @@ import csv
 
 class Forest():
 
-    def __init__(self, config, sim_space: SimulationSpace, arterial=True, template_forest: "Forest"=None):
+    def __init__(self, config: dict, d_0: float, r_0: float, sim_space: SimulationSpace, arterial=True):
+        """
+        Initialize a forest of multiple vessel trees.
 
+        Parameters:
+        ----------
+            - config: forest configuration dictionary
+            - d_0: Initial vessel length used for the root stumps.
+            - r_0: Initial radius used for the root stumps.
+            - sim_space: Simulation space in which the forest in grown.
+            - arterial: If true, the forest initializes only arterial trees. If false, initializes only venous trees.
+        """
         self.trees: list[ArterialTree] = []
         self.sim_space = sim_space
-        self.simspace_size = sim_space.geometry.shape
-        self.sim_scale = max(sim_space.geometry.shape)-1
-        self.size = np.array(sim_space.geometry.shape) / max(sim_space.geometry.shape)
-        self.size_x, self.size_y, self.size_z = tuple(self.size)
+        self.size_x, self.size_y, self.size_z = self.sim_space.shape
         self.arterial = arterial
-        if template_forest is not None:
-            self._initialize_tree_stumps_from_template_forest(template_forest)
-        elif config['type'] == 'nerve':#hasattr(self.sim_space, "valid_start_voxels"):
-            self._initialize_tree_stumps_from_simspace(config, config['d_0'], config['r_0'])
+        if config['type'] == 'nerve':
+            self._initialize_tree_stumps_from_nerve(config, d_0, r_0)
         elif config['type'] == 'stumps':
-            self._initialize_tree_stumps(config, config['d_0'], config['r_0'])
+            self._initialize_tree_stumps(config, d_0, r_0)
+        else:
+            raise NotImplementedError(f"The Forest initialization type '{config['type']}' is not implemented. Try 'stump' or 'nerve' instead.")
 
-    def _initialize_tree_stumps_from_template_forest(self, forest: "Forest"):
-        for tree_counter, template_tree in enumerate(forest.get_trees()):
-            tree_name = f'{"Arterial" if self.arterial else "Venous"}Tree{tree_counter}'
-            nodes = list(template_tree.get_tree_iterator())
-            wall_dim = np.where( (nodes[0].position==0) | (nodes[0].position == self.size) )[0]
-            if len(wall_dim) > 0:
-                wall_dim = wall_dim.item()
-            else:
-                wall_dim = random.choice([0,1,2])
-                while nodes[0].position[wall_dim] == nodes[1].position[wall_dim]:
-                    wall_dim = random.choice([0,1,2])
-            node_pos = list(self.tree_pos_2_sim_vox(nodes[0].position))
-            for i,p in enumerate(node_pos):
-                node_pos[i] = p + random.choice(list(range(max(0-p, -self.sim_space.geometry.shape[i]//10), min(self.sim_space.geometry.shape[i]-p, self.sim_space.geometry.shape[i]//10+1)))) if p != 0 else p
-            new_node_pos = list(self.sim_vox_2_tree_pos(node_pos))
+    def _initialize_tree_stumps_from_nerve(self, config, d_0: float, r_0: float):
+        """
+        Initialze the vessel network by placing all tree roots at the same position. By this, we replicate the optical nerve.
+        This should only be used if you use a FOV that contains the optical nerve. Otherwise use 'stumps' initialization.
 
-            new_node_pos1 = [*new_node_pos]
-            new_node_pos[wall_dim] = nodes[0].position[wall_dim]
-            new_node_pos1[wall_dim] = nodes[1].position[wall_dim]
-            tree = ArterialTree(tree_name, new_node_pos, nodes[0].radius, self.size_x, self.size_y, self.size_z, self)
-            tree.add_node(new_node_pos1, radius=nodes[1].radius, parent=tree.root)
-            self.trees.append(tree)
-
-    def _initialize_tree_stumps_from_simspace(self, config, d_0: float, r_0: float):
+        Parameters:
+        ----------
+            - config: forest configuration dictionary
+            - d_0: Initial vessel length used for the root stumps.
+            - r_0: Initial radius used for the root stumps.
+        """
         N_trees = config['N_trees']
         for tree_counter in range(N_trees):
             tree_name = f'{"Arterial" if self.arterial else "Venous"}Tree{tree_counter}'
             
-            center = (0.43,0.88)
-            radius = 0.01
+            nerve_center: list = config["nerve_center"]
+            nerve_radius: float = config["nerve_radius"]
 
             # random angle
             alpha = 2 * math.pi * random.random()
             # random radius
-            r = radius * math.sqrt(random.random())
+            r = nerve_radius * math.sqrt(random.random())
             # calculating coordinates
-            x = r * math.cos(alpha) + center[0]
-            y = r * math.sin(alpha) + center[1]
-            z = random.random() * 1/76
+            x = r * math.cos(alpha) + nerve_center[0]
+            y = r * math.sin(alpha) + nerve_center[1]
+            z = random.random() / self.sim_space.size_z
 
             tree_pos = np.array([x,y,z])
             tree = ArterialTree(tree_name, tree_pos, r_0, self.size_x, self.size_y, self.size_z, self)
@@ -75,7 +69,16 @@ class Forest():
             self.trees.append(tree)
 
     def _initialize_tree_stumps(self, config, d_0: float, r_0: float):
+        """
+        Initialze the vessel network by placing all tree roots at the lateral faces of the simulation space cuboid.
+        If your FOV is large enough to contain the optical nerve, you might want to use the 'nerve' initialization instead.
 
+        Parameters:
+        ----------
+            - config: forest configuration dictionary
+            - d_0: Initial vessel length used for the root stumps.
+            - r_0: Initial radius used for the root stumps.
+        """
         N_trees = config['N_trees']
 
         source_walls = []
@@ -91,9 +94,7 @@ class Forest():
             source_wall = random.choice(source_walls)
 
             if source_wall == 'x0':
-                available_start_positions = list(zip(*np.where(self.sim_space.geometry[0,:,:] > 0)))
-                indices = random.choice(available_start_positions)
-                y_position, z_position = self.sim_vox_2_tree_pos(indices)
+                y_position, z_position = self.sim_space.get_random_valid_position(along_axis=0, first=True)
                 position = np.array([0,y_position,z_position])
                 direction = np.array([
                     np.random.uniform(0.1,1),
@@ -108,10 +109,8 @@ class Forest():
                 self.trees.append(tree)
 
             elif source_wall == 'x1':
-                available_start_positions = list(zip(*np.where(self.sim_space.geometry[-1,:,:] > 0)))
-                indices = random.choice(available_start_positions)
-                y_position, z_position = self.sim_vox_2_tree_pos(indices)
-                position = np.array([self.size_x,y_position,z_position])
+                y_position, z_position = self.sim_space.get_random_valid_position(along_axis=0, first=False)
+                position = np.array([self.size_x-1e-6,y_position,z_position])
                 direction = np.array([
                     np.random.uniform(-1,-0.1),
                     np.random.uniform(-1 if y_position-d_0>0 else 0, 1 if y_position+d_0<self.size_y else 0),
@@ -125,9 +124,7 @@ class Forest():
                 self.trees.append(tree)
 
             elif source_wall == 'y0':
-                available_start_positions = list(zip(*np.where(self.sim_space.geometry[:,0,:] > 0)))
-                indices = random.choice(available_start_positions)
-                x_position, z_position = self.sim_vox_2_tree_pos(indices)
+                x_position, z_position = self.sim_space.get_random_valid_position(along_axis=1, first=True)
                 position = np.array([x_position,0,z_position])
                 direction = np.array([
                     np.random.uniform(-1 if x_position-d_0>0 else 0, 1 if x_position+d_0<self.size_x else 0),
@@ -142,10 +139,8 @@ class Forest():
                 self.trees.append(tree)
 
             elif source_wall == 'y1':
-                available_start_positions = list(zip(*np.where(self.sim_space.geometry[:,-1,:] > 0)))
-                indices = random.choice(available_start_positions)
-                x_position, z_position = self.sim_vox_2_tree_pos(indices)
-                position = np.array([x_position,self.size_y,z_position])
+                x_position, z_position = self.sim_space.get_random_valid_position(along_axis=1, first=False)
+                position = np.array([x_position,self.size_y-1e-6,z_position])
                 direction = np.array([
                     np.random.uniform(-1 if x_position-d_0>0 else 0, 1 if x_position+d_0<self.size_x else 0),
                     np.random.uniform(-1,-0.1),
@@ -159,9 +154,7 @@ class Forest():
                 self.trees.append(tree)
 
             elif source_wall == 'z0':
-                available_start_positions = list(zip(*np.where(self.sim_space.geometry[:,:,0] > 0)))
-                indices = random.choice(available_start_positions)
-                x_position, y_position = self.sim_vox_2_tree_pos(indices)
+                x_position, y_position = self.sim_space.get_random_valid_position(along_axis=2, first=True)
                 position = np.array([x_position,y_position,0])
                 direction = np.array([
                     np.random.uniform(-1 if x_position-d_0>0 else 0, 1 if x_position+d_0<self.size_x else 0),
@@ -176,10 +169,8 @@ class Forest():
                 self.trees.append(tree)
 
             elif source_wall == 'z1':
-                available_start_positions = list(zip(*np.where(self.sim_space.geometry[:,:,-1] > 0)))
-                indices = random.choice(available_start_positions)
-                x_position, y_position = self.sim_vox_2_tree_pos(indices)
-                position = np.array([x_position,y_position,self.size_z])
+                x_position, y_position = self.sim_space.get_random_valid_position(along_axis=0, first=True)
+                position = np.array([x_position,y_position,self.size_z-1e-6])
                 direction = np.array([
                     np.random.uniform(-1 if x_position-d_0>0 else 0, 1 if x_position+d_0<self.size_x else 0),
                     np.random.uniform(-1 if y_position-d_0>0 else 0, 1 if y_position+d_0<self.size_y else 0),
@@ -191,22 +182,6 @@ class Forest():
                 tree.add_node(position=tuple(position + direction), radius=r_0, parent=tree.root)
                 
                 self.trees.append(tree)
-
-    def sim_vox_2_tree_pos(self, index: tuple[int]) -> tuple[float]:
-        return tuple([(i+random.uniform(0,1)) / self.sim_scale for i in index])
-
-    def sim_voxs_2_tree_poss(self, candidate_voxels: np.ndarray) -> tuple[float]:
-        return (candidate_voxels + np.random.uniform(0,1,candidate_voxels.shape)) / self.sim_scale
-
-    def tree_pos_2_sim_vox(self, pos: tuple[float]) -> tuple[int]:
-        return tuple([int(self.sim_scale * p) for p in pos])
-
-    def is_inbounds(self, pos: np.ndarray) -> bool:
-        return all(pos<self.size) and all(0<=pos) and self.sim_space.geometry[self.tree_pos_2_sim_vox(pos)]>0
-    
-    def rescale(self, s=None, s_0=None, N_s=None, relative_rescale_factor=None):
-        for tree in self.trees:
-            tree.rescale(s, s_0, N_s, relative_rescale_factor)
 
     def get_trees(self):
         return self.trees

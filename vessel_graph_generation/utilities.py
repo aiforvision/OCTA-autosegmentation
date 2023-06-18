@@ -1,14 +1,12 @@
-import datetime
-# import json
 import os
 
 import numpy as np
 import math
 from uuid import uuid4
 import yaml
+from datetime import datetime
 
 def normalize_vector(vec):
-
     if np.linalg.norm(vec) != 0.0:
         return vec / np.linalg.norm(vec)
     else:
@@ -19,11 +17,8 @@ def normalize_vector(vec):
 def prepare_output_dir(config) -> str:
 
     output_dir = os.path.abspath(config['directory'])
-    # if config['subdir_with_timestamp']:
-    #     output_dir = os.path.join(output_dir, datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
-    output_dir = os.path.join(output_dir, str(uuid4()))
+    output_dir = os.path.join(output_dir, datetime.now().strftime('%Y%m%d_%H%M%S')+"_"+str(uuid4()))
     os.makedirs(output_dir, exist_ok=True)
-    # os.chdir(output_dir)
     return output_dir
 
 # Function to read in JSON config file
@@ -31,14 +26,12 @@ def read_config(configpath):
 
     path = os.path.abspath(configpath)
     with open(path, "r") as filepath:
-    #     config = json.load(filepath)
         try:
             config: dict[str,dict] = yaml.safe_load(filepath)
         except Exception as e:
             print(f"Your provided config file at {filepath} is not a valid yaml file!")
             raise e
 
-    # Using print as logger is not configured yet
     return config
 
 def eukledian_dist(pos1: tuple[float], pos2: tuple[float]) -> float:

@@ -2,13 +2,23 @@ from typing import Generator
 
 import anytree
 import numpy as np
-from scipy.optimize import minimize
 
 
 class Node(anytree.NodeMixin):
 
-    def __init__(self, tree, name, position, radius, max_bounds=(np.inf, np.inf, np.inf), parent=None, children=None, kappa=4):
+    def __init__(self, tree, name, position, radius, parent=None, kappa=4):
+        """
+        Creates a new node in the given tree.
 
+        Parameters:
+        -----------
+            - tree: ArterialTree of which the node is part of
+            - name: Name of the node
+            - position: 3D position in the simulation space
+            - radius: Radius of the proximal vessel segment
+            - parent: Parent node. If None, the node is a root node.
+            - kappa: The bifurcation exponent used to update the proximal vessel radius.
+        """
         super(Node, self).__init__()
         
         self.tree: ArterialTree = tree
@@ -17,14 +27,11 @@ class Node(anytree.NodeMixin):
         self.position = np.array(position)
         self.radius = radius
 
-        self.max_bounds = np.array(max_bounds)
         self.active = self._node_inbounds()
 
         self.kappa=kappa
         
         self.parent: Node = parent
-        if children:
-            self.children: list[Node] = children
 
         # is_root and is_leaf are implemented by anytree
         self.is_inter_node = False
@@ -41,17 +48,14 @@ class Node(anytree.NodeMixin):
         return '{} (position: {}, radius: {}, active: {})'.format(self.name, self.position, self.radius, self.active)
 
     def _post_attach(self, parent):
-
         parent._update_node_status()
 
 
     def _post_detach(self, parent):
-
         parent._update_node_status()
 
 
     def _update_node_status(self):
-
         if self.parent is not None and len(self.children) == 1:
             self.is_inter_node = True
             self.is_bifurcation_node = False
@@ -64,89 +68,15 @@ class Node(anytree.NodeMixin):
 
     
     def _node_inbounds(self):
-        return self.tree.forest.is_inbounds(self.position)
-
-
-    def detach(self):
-
-        self.parent = None
-
-    
-    def optimize_branching_position(self):
-
-        if self.is_root:
-            raise RuntimeError('Unable to optimize branching position. Requested node is root.')
-        if not self.is_bifurcation_node:
-            raise RuntimeError('Unable to optimize branching position. Requested node is not a bifurcation node.')
-
-        p_p = self.parent.position
-        p_1 = self.children[0].position
-        p_2 = self.children[1].position
-
-        r_p = self.radius
-        r_1 = self.children[0].radius
-        r_2 = self.children[1].radius
-
-        initial_guess = self.position
-        
-        def cumulative_distance_from_branch(p_b):
-            return r_p ** 2 * np.linalg.norm(p_p - p_b) +\
-                   r_1 ** 2 * np.linalg.norm(p_1 - p_b) +\
-                   r_2 ** 2 * np.linalg.norm(p_2 - p_b)
-        updated_position = minimize(cumulative_distance_from_branch, initial_guess, method='Nelder-Mead', tol=1e-15)['x']
-
-        self.position = updated_position
-        self.active = self._node_inbounds()
-
-
-    def update_max_bounds(self, max_bounds):
-
-        self.max_bounds = np.array(max_bounds)
-
-
-    def update_position(self, position):
-
-        self.position = position
-        self.active = self._node_inbounds()
-
+        return self.tree.forest.sim_space.is_valid_position(self.position)
 
     def update_radius(self, radius):
-
         self.radius = radius
 
-
-    def get_path_to_root_iterator(self):
-
-        return reversed(self.path)
-
-
-    def get_subtree_iterator(self, exclude_head=False):
-
-        filter_ = lambda n: (n is not self if exclude_head else True)
-        return anytree.LevelOrderIter(self, filter_)
-    
-
-    def get_distal_branch_length(self, child_index=None):
-
-        if self.is_leaf:
-            raise RuntimeError('Unable to analyze distal part. This node does not have any children.')
-        elif self.is_bifurcation_node:
-            if child_index is None:
-                raise RuntimeError('Unable to analyze distal part. Unclear which branch to return.')
-            else:
-                raise NotImplementedError('Oops.')
-        elif self.is_inter_node or self.is_root:
-            length = 0.0
-            current_node = self
-            while(current_node.is_inter_node):
-                length += np.linalg.norm(current_node.children[0].position - current_node.position)
-                current_node = current_node.children[0]
-            
-            return length
-
-
     def get_distal_node(self, child_index=None):
-
+        """
+        Returns the indexed child node
+        """
         if self.is_leaf:
             raise RuntimeError('Unable to analyze distal part. This node does not have any children.')
         elif self.is_bifurcation_node:
@@ -159,7 +89,9 @@ class Node(anytree.NodeMixin):
 
 
     def get_distal_position(self, child_index=None):
-
+        """
+        Returns the position of the indexed child node
+        """
         if self.is_leaf:
             raise RuntimeError('Unable to analyze distal part. This node does not have any children.')
         elif self.is_bifurcation_node:
@@ -172,7 +104,9 @@ class Node(anytree.NodeMixin):
 
 
     def get_distal_radius(self, child_index=None):
-
+        """
+        Returns the radius of the vessel segment from to the given child node 
+        """
         if self.is_leaf:
             raise RuntimeError('Unable to analyze distal part. This node does not have any children.')
         elif self.is_bifurcation_node:
@@ -188,7 +122,6 @@ class Node(anytree.NodeMixin):
         """
         Returns direction vector from self to child with the given index
         """
-
         if self.is_leaf:
             raise RuntimeError('Unable to analyze distal part. This node does not have any children.')
         elif self.is_bifurcation_node:
@@ -199,38 +132,10 @@ class Node(anytree.NodeMixin):
         elif self.is_inter_node or self.is_root:
             return self.children[0].position - self.position
 
-
-    def get_proximal_bifurcation(self, one_below=False):
-        
-        if self.is_root:
-            raise RuntimeError('Unable to analyze proximal part. This node is the root.')
-        else:
-            current_node = self
-            while not (current_node.parent.is_root or current_node.parent.is_bifurcation_node):
-                current_node = current_node.parent
-            
-            if one_below:
-                return current_node
-            else:
-                return current_node.parent
-
-
-    def get_proximal_branch_length(self):
-        
-        if self.is_root:
-            raise RuntimeError('Unable to analyze proximal part. This node is the root.')
-        else:
-            length = 0.0
-            current_node = self
-            while current_node.is_leaf or current_node.is_inter_node:
-                length += np.linalg.norm(current_node.position - current_node.parent.position)
-                current_node = current_node.parent
-            
-            return length
-
-
     def get_proximal_node(self):
-        
+        """
+        Returns the the parent node
+        """
         if self.is_root:
             raise RuntimeError('Unable to analyze proximal part. This node is the root.')
         else:
@@ -238,7 +143,9 @@ class Node(anytree.NodeMixin):
 
 
     def get_proximal_position(self):
-        
+        """
+        Returns the position of the parent node
+        """
         if self.is_root:
             raise RuntimeError('Unable to analyze proximal part. This node is the root.')
         else:
@@ -246,7 +153,9 @@ class Node(anytree.NodeMixin):
 
 
     def get_proximal_radius(self):
-        
+        """
+        Returns the radius of the vessel segment from parent to self 
+        """
         if self.is_root:
             raise RuntimeError('Unable to analyze proximal part. This node is the root.')
         else:
@@ -297,7 +206,7 @@ class ArterialTree():
         self.scaling_factor = 1.0
 
         self.forest = forest
-        self.root = Node(self, 'Root', position=root_position, radius=r_0, max_bounds=(size_x, size_y, size_z))
+        self.root = Node(self, 'Root', position=root_position, radius=r_0)
 
         self.name_counter = 1
 
@@ -311,48 +220,10 @@ class ArterialTree():
         new_name = 'Node' + str(self.name_counter)
         self.name_counter += 1
 
-        return Node(self, new_name, position=position, radius=radius, max_bounds=(self.size_x, self.size_y, self.size_z), parent=parent, kappa=kappa)
-
-
-    def add_existing_tree(self, tree, parent):
-
-        for node in tree.get_tree_iterator(exclude_root=False):
-            new_name = 'Node' + str(self.name_counter)
-            self.name_counter += 1
-
-            node.name = new_name
-            node.tree = self
-
-        tree.root.parent = parent
+        return Node(self, new_name, position=position, radius=radius, parent=parent, kappa=kappa)
 
 
     def get_tree_iterator(self, exclude_root=False, only_active=False) -> Generator[Node, None, None]:
 
         filter_ = lambda n: (n.parent is not None if exclude_root else True) and (n.active if only_active else True)
         return anytree.LevelOrderIter(self.root, filter_)
-
-
-    def get_tree_size(self, exclude_root=True, only_active=False):
-
-        filter_ = lambda n: (n.parent is not None if exclude_root else True) and (n.active if only_active else True)
-        return sum(1 for _ in anytree.LevelOrderIter(self.root, filter_))
-
-
-    def rescale(self, s=None, s_0=None, N_s=None, relative_scaling_factor=None):
-        if relative_scaling_factor is None:
-            # Determine scaling factor
-            previous_scaling_factor = self.scaling_factor
-            self.scaling_factor = s_0 ** ((N_s - s) / (N_s - 1))
-            relative_scaling_factor = self.scaling_factor / previous_scaling_factor
-
-        self.size_x = self.scaling_factor * self.init_size_x
-        self.size_y = self.scaling_factor * self.init_size_y
-        self.size_z = self.scaling_factor * self.init_size_z
-
-        self.r_0 = relative_scaling_factor * self.r_0
-
-        for node in self.get_tree_iterator(exclude_root=False, only_active=False):
-
-            node.update_max_bounds((self.size_x, self.size_y, self.size_z))
-            node.update_position(relative_scaling_factor * node.position)
-            node.update_radius(relative_scaling_factor * node.radius)
