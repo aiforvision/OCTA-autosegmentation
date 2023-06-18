@@ -36,7 +36,11 @@ Train:
       keys:
         - image
         - label
-      image_scales: [4,16]
+      image_resolutions: 
+        - [304,304] # for 304x304 images
+        - [1216,1216]
+        # - [512,512] # for 512x512 images
+        # - [1216,1216]
       min_radius: [0,0.0033] # OCTA-500
       # min_radius: [0,0.0015] # ROSE-1
       # min_radius: [0,0] # Giarratano (detailed)

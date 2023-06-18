@@ -51,8 +51,11 @@ Train:
       keys:
         - real_A
         - real_A_seg
-      image_scales: [4,16] # for 304x304 images
-      # image_scales: [6.73,16] # for 512x512 images
+      image_resolutions: 
+        - [304,304] # for 304x304 images
+        - [1216,1216]
+        # - [512,512] # for 512x512 images
+        # - [1216,1216]
       min_radius: [0,0]
       max_dropout_prob: 0.02
     - name: EnsureChannelFirstd
@@ -160,7 +163,9 @@ Test:
     - name: LoadGraphAndFilterByRandomRadiusd
       keys:
         - real_A
-      image_scales: [4]
+      
+      image_resolutions: 
+        - [304,304]
       allow_missing_keys: true
     - name: ScaleIntensityd
       keys:
