@@ -8,19 +8,19 @@ We provide 500 synthetic training samples at `./images/`, their corresponding la
 docker run -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 ``` 
 
-You can also generate your own synthetic samples with a customized config (e.g. [./vessel_graph_generation/configs/dataset_16_02_23.yml](./vessel_graph_generation/configs/dataset_16_02_23.yml)). Run from project folder:
+You can also generate your own synthetic samples with a customized config (e.g. [./vessel_graph_generation/configs/dataset_18_June_2023.yml](./vessel_graph_generation/configs/dataset_18_June_2023.yml)). Run from project folder:
 ```sh
-# This will generate 500 samples at `./vessel_graph_generation/datasets/dataset_16_02_23/`
-python generate_vessel_graph.py --config_file ./vessel_graph_generation/configs/dataset_16_02_23.yml --num_samples 500
+# This will generate 500 samples at `./vessel_graph_generation/datasets/dataset_18_June_2023/`
+python generate_vessel_graph.py --config_file ./vessel_graph_generation/configs/dataset_18_June_2023.yml --num_samples 500
 ```
 
 To visualize them run:
 ```sh
 # Create images
-python ./datasets/visualize_vessel_graphs.py --source_dir ./datasets/dataset_16_02_23 --out_dir ./datasets/dataset_16_02_23_png --factor 4
+python ./datasets/visualize_vessel_graphs.py --source_dir ./datasets/dataset_18_June_2023 --out_dir ./datasets/dataset_18_June_2023_png --factor 4
 
 # Create label maps
-python ./datasets/visualize_vessel_graphs.py --source_dir ./datasets/synth_csv --out_dir ./datasets/dataset_16_02_23_label_png --factor 16 --binarize
+python ./datasets/visualize_vessel_graphs.py --source_dir ./datasets/synth_csv --out_dir ./datasets/dataset_18_June_2023_label_png --factor 16 --binarize
 ```
 
 To turn them into realistic images, **transform** the images using a pretrained GAN. Update the source path in the model config file and run:
