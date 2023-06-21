@@ -1,5 +1,5 @@
 # Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs
-This is the repository for the paper <b>"Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs" (2023)</b>.
+This is the repository for the paper [Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs (2023)](https://arxiv.org/abs/2306.10941)</b>.
 
 <div style="text-align:center">
     <img src="images/abstract_v4_1.svg">
@@ -98,16 +98,19 @@ python test.py --config_file [PATH_TO_CONFIG_FILE] --epoch [EPOCH]
 ```
 
 # 🟢 Citation
-If you use this code for your research, please cite our paper (To be finalized):
+If you use this code for your research, please cite our [paper (preprint)](https://arxiv.org/abs/2306.10941):
 ```bib
-@inproceedings{Kreitner2023,
-title={Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs},
-author={Kreitner, Linus and Paetzold, Johannes C. and Rauch Nikolaus and Chen, Chen and Hagag, Ahmed M. and Fayed, Alaa E. and Sivaprasad, Sobha and Rausch, Sebastian and Weichsel, Julian and Menze, Bjoern H. and Harders, Matthias and Knier, Benjamin and Rueckert, Daniel and Menten, Martin J. },
-year={2023}
+@misc{Kreitner2023,
+title={Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs}, 
+author={Linus Kreitner and Johannes C. Paetzold and Nikolaus Rauch and Chen Chen and Ahmed M. Hagag and Alaa E. Fayed and Sobha Sivaprasad and Sebastian Rausch and Julian Weichsel and Bjoern H. Menze and Matthias Harders and Benjamin Knier and Daniel Rueckert and Martin J. Menten},
+year={2023},
+eprint={2306.10941},
+archivePrefix={arXiv},
+primaryClass={eess.IV}
 }
 ```
 
-And our privious work:
+And our [privious work](https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32):
 ```bib
 @InProceedings{Menten2022,
 author="Menten, Martin J. and Paetzold, Johannes C. and Dima, Alina
