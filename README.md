@@ -113,15 +113,15 @@ primaryClass={eess.IV}
 And our [privious work](https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32):
 ```bib
 @InProceedings{Menten2022,
-author="Menten, Martin J. and Paetzold, Johannes C. and Dima, Alina
-and Menze, Bjoern H. and Knier, Benjamin and Rueckert, Daniel",
-title="Physiology-Based Simulation of the Retinal Vasculature Enables Annotation-Free Segmentation of OCT Angiographs",
-booktitle="Medical Image Computing and Computer Assisted Intervention -- MICCAI 2022",
-year="2022",
-publisher="Springer Nature Switzerland",
-address="Cham",
-pages="330--340",
-abstract="Optical coherence tomography angiography (OCTA) can non-invasively image the eye's circulatory system. In order to reliably characterize the retinal vasculature, there is a need to automatically extract quantitative metrics from these images. The calculation of such biomarkers requires a precise semantic segmentation of the blood vessels. However, deep-learning-based methods for segmentation mostly rely on supervised training with voxel-level annotations, which are costly to obtain.",
-isbn="978-3-031-16452-1"
+author={Menten, Martin J. and Paetzold, Johannes C. and Dima, Alina
+and Menze, Bjoern H. and Knier, Benjamin and Rueckert, Daniel},
+title={Physiology-Based Simulation of the Retinal Vasculature Enables Annotation-Free Segmentation of OCT Angiographs},
+booktitle={Medical Image Computing and Computer Assisted Intervention -- MICCAI 2022},
+year={2022},
+publisher={Springer Nature Switzerland},
+address={Cham},
+pages={330--340},
+abstract={Optical coherence tomography angiography (OCTA) can non-invasively image the eye's circulatory system. In order to reliably characterize the retinal vasculature, there is a need to automatically extract quantitative metrics from these images. The calculation of such biomarkers requires a precise semantic segmentation of the blood vessels. However, deep-learning-based methods for segmentation mostly rely on supervised training with voxel-level annotations, which are costly to obtain.},
+isbn={978-3-031-16452-1}
 }
 ```
