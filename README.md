@@ -106,7 +106,8 @@ author={Linus Kreitner and Johannes C. Paetzold and Nikolaus Rauch and Chen Chen
 year={2023},
 eprint={2306.10941},
 archivePrefix={arXiv},
-primaryClass={eess.IV}
+primaryClass={eess.IV},
+url = {https://doi.org/10.48550/arXiv.2306.10941}
 }
 ```
 
