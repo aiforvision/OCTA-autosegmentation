@@ -6,3 +6,4 @@ ipykernel
 natsort
 tqdm
 open3d
+nibabel

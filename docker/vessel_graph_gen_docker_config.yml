@@ -47,7 +47,7 @@ output:
   directory: /var/generation/vessel_graphs
   image_scale_factor: 304
   save_trees: true
-  save_3D_volumes: false
+  save_3D_volumes: null
   save_2D_image: true
   proj_axis: 2
   save_stats: false

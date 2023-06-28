@@ -5,6 +5,7 @@ from vessel_graph_generation.greenhouse import Greenhouse
 from vessel_graph_generation.utilities import prepare_output_dir, read_config
 import vessel_graph_generation.tree2img as tree2img
 import numpy as np
+import nibabel as nib
 import os
 from tqdm import tqdm
 import yaml
@@ -58,11 +59,15 @@ def main(config):
                 writer.writerow([row["node1"], row["node2"], row["radius"]])
 
     radius_list=[]
-    if config["output"]["save_3D_volumes"]:
+    if config["output"].get("save_3D_volumes"):
         art_mat, _ = tree2img.voxelize_forest(art_edges, volume_dimension, radius_list)
         ven_mat, _ = tree2img.voxelize_forest(ven_edges, volume_dimension, radius_list)
         art_ven_mat_gray = np.maximum(art_mat, ven_mat).astype(np.uint8)
-        np.save(f'{out_dir}/art_ven_img_gray.npy', art_ven_mat_gray)
+        if config["output"]["save_3D_volumes"] == "npy":
+            np.save(f'{out_dir}/art_ven_img_gray.npy', art_ven_mat_gray)
+        elif config["output"]["save_3D_volumes"] == "nifti":
+            nifti = nib.Nifti1Image(art_ven_mat_gray, np.eye(4))
+            nib.save(nifti, f"{out_dir}/art_ven_img_gray.nii.gz")
     
     if config["output"]["save_2D_image"]:
         radius_list=[]
@@ -91,6 +96,8 @@ if __name__ == '__main__':
     # Read config file
     assert os.path.isfile(args.config_file), f"Error: Your provided config path {args.config_file} does not exist!"
     config = read_config(args.config_file)
+
+    assert config['output'].get('save_3D_volumes') in [None, 'npy', 'nifti'], f"Your provided option {config['output'].get('save_3D_volumes')} for 'save_3D_volumes' does not exist. Choose one of 'null', 'npy' or 'nifti'."
 
     if args.threads == -1:
         # If no argument is provided, use all available threads but one
