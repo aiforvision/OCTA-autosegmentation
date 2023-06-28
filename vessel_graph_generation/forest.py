@@ -169,7 +169,7 @@ class Forest():
                 self.trees.append(tree)
 
             elif source_wall == 'z1':
-                x_position, y_position = self.sim_space.get_random_valid_position(along_axis=0, first=True)
+                x_position, y_position = self.sim_space.get_random_valid_position(along_axis=2, first=True)
                 position = np.array([x_position,y_position,self.size_z-1e-6])
                 direction = np.array([
                     np.random.uniform(-1 if x_position-d_0>0 else 0, 1 if x_position+d_0<self.size_x else 0),
