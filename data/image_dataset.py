@@ -8,6 +8,8 @@ from natsort import natsorted
 import os
 
 from monai.data.meta_obj import set_track_meta
+from multiprocessing import cpu_count
+from math import ceil
 
 from utils.metrics import Task
 from data.unalignedZipDataset import UnalignedZipDataset
@@ -83,5 +85,5 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoa
 
 
     data_set = Dataset(train_files, transform=transform)
-    loader = DataLoader(data_set, batch_size=batch_size or config[phase.capitalize()].get("batch_size") or 1, shuffle=phase!="test", num_workers=32, pin_memory=torch.cuda.is_available())
+    loader = DataLoader(data_set, batch_size=batch_size or config[phase.capitalize()].get("batch_size") or 1, shuffle=phase!="test", num_workers=ceil(cpu_count()/2), pin_memory=torch.cuda.is_available())
     return loader

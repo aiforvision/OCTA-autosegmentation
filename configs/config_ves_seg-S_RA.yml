@@ -121,19 +121,19 @@ Validation:
   batch_size: 4
   data:
     image:
-      files: /home/lkreitner/OCTA-seg/datasets/OCTA-500/images/**/*.png
-      # files: /home/lkreitner/OCTA-seg/datasets/ROSE-1/images/**/*.png
-      # files: /home/lkreitner/OCTA-seg/datasets/Giarratano/original_images/**/*.png
-      split: /home/lkreitner/OCTA-seg/datasets/OCTA-500/val_4.txt
-      # split: /home/lkreitner/OCTA-seg/datasets/ROSE-1/val_4.txt
-      # split: /home/lkreitner/OCTA-seg/datasets/Giarratano/val_4.txt
+      files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
+      # files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png
+      split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
     label:
-      files: /home/lkreitner/OCTA-seg/datasets/OCTA-500/segmentations/**/*.png
-      # files: /home/lkreitner/OCTA-seg/datasets/ROSE-1/segmentations/**/*.png
-      # files: /home/lkreitner/OCTA-seg/datasets/Giarratano/segmented_images/**/*.png
-      split: /home/lkreitner/OCTA-seg/datasets/OCTA-500/val_4.txt
-      # split: /home/lkreitner/OCTA-seg/datasets/ROSE-1/val_4.txt
-      # split: /home/lkreitner/OCTA-seg/datasets/Giarratano/val_4.txt
+      files: /ABSOLUTE/PATH/TO/OCTA-500/segmentations/**/*.png
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/segmentations/**/*.png
+      # files: /ABSOLUTE/PATH/TO/Giarratano/segmented_images/**/*.png
+      split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
   data_augmentation:
     - name: LoadImaged
       keys:
@@ -198,10 +198,11 @@ Test:
   batch_size: 1
   data:
     image:
-      files: /home/lkreitner/OCTA-seg/datasets/OCTA-500/images/**/*.png
-      spilt: /home/lkreitner/OCTA-seg/datasets/OCTA-500/test_0.txt
-      # files: /home/lkreitner/OCTA-seg/datasets/ROSE-1/images/**/*.png
-      # spilt: /home/lkreitner/OCTA-seg/datasets/ROSE-1/test_0.txt
+      files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
+      spilt: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
+
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
+      # spilt: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
   save_comparisons: false
   data_augmentation:
     - name: LoadImaged
@@ -225,8 +226,12 @@ Test:
       keys:
       - image
       spatial_size:
-      - 1216
-      - 1216
+        # Giarratano
+        # - 360
+        # - 360
+        # OCTA-500 and ROSE-1
+        - 1216
+        - 1216
       mode: bilinear
     - name: Rotate90d
       keys:

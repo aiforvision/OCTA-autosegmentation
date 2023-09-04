@@ -103,7 +103,7 @@ class AtLoss(torch.nn.Module):
         return x+r, reg
 
 class ANTLoss(torch.nn.Module):
-    def __init__(self, scaler: GradScaler, loss_fun: torch.nn.Module, grid_size= (8,8)) -> None:
+    def __init__(self, scaler: GradScaler, loss_fun: torch.nn.Module, grid_size=(9,9)) -> None:
         super().__init__()
         self.noise_model = NoiseModel(
             grid_size = grid_size,
@@ -116,18 +116,22 @@ class ANTLoss(torch.nn.Module):
         self.loss_fun = loss_fun
 
     def forward(self, model: torch.nn.Module, x: torch.Tensor, background: torch.Tensor, y: torch.Tensor):
-        model.eval()
-        adv_sample = self.noise_model.forward(x, background, False)
+        model.requires_grad_(False)
+        self.noise_model.requires_grad_(True)
+        adv_sample = self.noise_model.forward(x, background, False, downsample_factor=4)
         loss_trajectory = []
-        for i in range(3):
+        num_iters = 3
+        for i in range(num_iters):
             with torch.cuda.amp.autocast():
                 pred = model(adv_sample)
                 loss: torch.Tensor = self.loss_fun(pred, y)
                 loss_trajectory.append(loss.item())
-            self.scaler.scale(loss).backward()
+            self.scaler.scale(-loss).backward()
             # with torch.cuda.amp.autocast():
-            adv_sample = self.noise_model.forward(x, background, True)
-        model.train()
+            if i == i-num_iters:
+                self.noise_model.requires_grad_(False)
+            adv_sample = self.noise_model.forward(x, background, True, downsample_factor=4)
+        model.requires_grad_(True)
         return adv_sample.detach(), 0
 
 class DiceBCELoss():
@@ -229,7 +233,7 @@ def get_loss_function_by_name(name: str, config: dict, scaler: GradScaler=None, 
         weight = None
     loss_map = {
         # "AtLoss": AtLoss(scaler, loss, None, 200/255, 1, alpha=1.25 * (100/255), grad_align_cos_lambda=0),
-        "AtLoss": ANTLoss(scaler, loss, (3,3)),
+        "AtLoss": ANTLoss(scaler, loss, (9,9)),
         "DiceBCELoss": DiceBCELoss(True),
         "CrossEntropyLoss": torch.nn.CrossEntropyLoss(weight=weight),
         "CosineEmbeddingLoss": WeightedCosineLoss(weights=weight),

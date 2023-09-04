@@ -113,10 +113,11 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
         }
         epoch_metrics["metric"] = metrics.aggregate_and_reset(prefix="train")
         epoch_tqdm.set_description(f'avg train loss: {epoch_loss:.4f}')
-        if task == Task.VESSEL_SEGMENTATION:
-            image_path_train = visualizer.plot_sample(inputs[0], outputs[0], labels[0], suffix='latest_train', path=batch_data["image_path"][0])
-        else:
-            image_path_train = visualizer.plot_clf_sample(inputs, outputs, labels, batch_data["path"], suffix='latest_train')
+        if epoch%save_interval == 0:
+            if task == Task.VESSEL_SEGMENTATION:
+                image_path_train = visualizer.plot_sample(inputs[0], outputs[0], labels[0], suffix='latest_train', path=batch_data["image_path"][0])
+            else:
+                image_path_train = visualizer.plot_clf_sample(inputs, outputs, labels, batch_data["path"], suffix='latest_train')
         
         checkpoint_path = visualizer.save_model(model, optimizer, epoch, 'latest')
 
@@ -152,7 +153,7 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
 
                 visualizer.plot_losses_and_metrics(epoch_metrics, epoch)
                 if epoch%save_interval == 0:
-                    if task == Task.VESSEL_SEGMENTATION or task == Task.AREA_SEGMENTATION:
+                    if task == Task.VESSEL_SEGMENTATION:
                         image_path_val = visualizer.plot_sample(val_inputs[0], val_outputs[0], val_labels[0], suffix='latest_val')
                     else:
                         image_path_val = visualizer.plot_clf_sample(val_inputs, val_outputs, val_labels, val_data["path"], suffix= None if best_metric>metric_comp else 'best')

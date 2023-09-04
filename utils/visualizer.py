@@ -31,6 +31,7 @@ class Visualizer():
         self.track_record: list[dict[str, dict[str, float]]] = list()
         self.epochs = []
         self.log_file_path = None
+        self.tb = None
 
         if continue_train:
             name = config["Output"]["save_dir"].split("/")[-1]

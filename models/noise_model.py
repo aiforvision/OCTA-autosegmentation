@@ -74,8 +74,8 @@ class NoiseModel(torch.nn.Module):
         self.lambda_gamma = lambda_gamma
         self.alpha = alpha
 
-    def forward(self, I: torch.Tensor, I_d: torch.Tensor, adversarial: bool, downsample_factor=4) -> torch.Tensor:
-        size = [int(s*(4/downsample_factor)) for s in I.shape[2:]]
+    def forward(self, I: torch.Tensor, I_d: torch.Tensor, adversarial: bool, downsample_factor=1) -> torch.Tensor:
+        size = [s for s in I.shape[2:]]
         I_new = torch.nn.functional.interpolate(I, scale_factor=1/downsample_factor, mode="bilinear")
         Delta = self.vessel_noise.forward(I_new, adversarial)
         N = self.specle_noise(I_new, adversarial)
