@@ -163,7 +163,7 @@ Validation:
     - name: AsDiscreted
       keys:
       - label
-      threshold: 0.5
+      threshold: 0.1
     - name: CastToTyped
       keys:
       - image

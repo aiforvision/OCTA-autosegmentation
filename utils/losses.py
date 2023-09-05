@@ -128,7 +128,7 @@ class ANTLoss(torch.nn.Module):
                 loss_trajectory.append(loss.item())
             self.scaler.scale(-loss).backward()
             # with torch.cuda.amp.autocast():
-            if i == i-num_iters:
+            if i == num_iters-1:
                 self.noise_model.requires_grad_(False)
             adv_sample = self.noise_model.forward(x, background, True, downsample_factor=4)
         model.requires_grad_(True)
