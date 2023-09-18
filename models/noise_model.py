@@ -11,60 +11,39 @@ def projected_gradient_ascent_step(prior: torch.Tensor, alpha=1, mode="PGA", lam
     else:
         raise NotImplementedError()
 
-
 class ControlPointBetaNoise(torch.nn.Module):
-    
-    def __init__(self, control_point_shape=(8,8), mode="bicubic", mean_interval = (0.05,0.95), alpha=0.25) -> None:
+    def __init__(self, control_point_shape=(9,9), mode="bicubic") -> None:
         super().__init__()
-        self.control_point_shape = control_point_shape
-        self.inference = False
         self.mode = mode
-        self.dist = None
-        self.mean_interval = mean_interval
-        self.alpha = alpha
-        self.seed = None
+        self.control_point_shape = control_point_shape
+        self.param_sampler = torch.distributions.beta.Beta(2,2)
 
-    def forward(self, input: torch.Tensor, adversarial: bool):
-        if not adversarial:
-            mean_control_points: torch.Tensor = torch.rand((*input.shape[:-2],*self.control_point_shape), device=input.device,dtype=input.dtype)*(self.mean_interval[1]-self.mean_interval[0])+self.mean_interval[0]
-            mean_N = torch.nn.functional.interpolate(mean_control_points, input.shape[-2:], mode=self.mode)
-            mean_N = torch.clamp(mean_N, *self.mean_interval)
-            
-            t = (mean_N*(1-mean_N))
-            std_control_points: torch.Tensor = t.clone()-1e-6
-            std_N = torch.nn.functional.interpolate(std_control_points, input.shape[-2:], mode=self.mode)
-            self.seed = random.randint(0,1e6)
-        else:
-            posterior = projected_gradient_ascent_step(self.N, alpha=self.alpha, lambda_x=self.mean_interval[1]-self.mean_interval[0])
-            mean_control_points = torch.nn.functional.interpolate(posterior, self.control_point_shape, mode=self.mode)
-            mean_control_points = torch.clamp(mean_control_points, *self.mean_interval)
-            mean_N = torch.nn.functional.interpolate(mean_control_points, input.shape[-2:], mode=self.mode)
-            mean_N = torch.clamp(mean_N, *self.mean_interval)
+    def reset_params(self, n_batch: int):
+        if not hasattr(self, "alpha_unbound"):
+            c_shape = (n_batch, 1, *self.control_point_shape)
+            self.alpha_unbound = torch.nn.Parameter(torch.zeros(c_shape))
+            self.beta_unbound = torch.nn.Parameter(torch.zeros(c_shape))
+            self.register_parameter("alpha_unbound", self.alpha_unbound)
+            self.register_parameter("beta_unbound", self.beta_unbound)
+        rg = self.alpha_unbound.requires_grad
+        self.requires_grad_(False)
+        self.alpha_unbound[:,:,:,:] = 10**(self.param_sampler.sample(self.alpha_unbound.shape)*2-1)# torch.zeros_like(self.alpha_unbound).uniform_(-1,1)
+        self.beta_unbound[:,:,:,:] =  10**(self.param_sampler.sample(self.beta_unbound.shape)*2-1)#torch.zeros_like(self.beta_unbound).uniform_(-1,1)
+        self.requires_grad_(rg)
 
-            t = (mean_N*(1-mean_N))
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        h, w = input.shape[-2:]
+        Alpha_unbound = torch.nn.functional.interpolate(self.alpha_unbound, (h,w), mode="bicubic")
+        Beta_unbound = torch.nn.functional.interpolate(self.beta_unbound, (h,w), mode="bicubic")
 
-            difference = (torch.clamp(posterior, *self.mean_interval) - mean_N)**2
-            std_control_points = torch.sqrt(torch.clamp(torch.nn.functional.interpolate(difference, self.control_point_shape, mode=self.mode), 1e-6, 0.25))
-
-            std_N = torch.nn.functional.interpolate(std_control_points, input.shape[-2:], mode=self.mode)
-            std_N = torch.clamp(std_N, torch.tensor(0.01, device=t.device),t.sqrt()-1e-6)
-
-        V = t / (std_N**2) - 1
-        Alpha = mean_N * V
-        Beta = (1-mean_N) * V
-
-        Alpha = torch.nn.functional.relu(Alpha)+1e-6
-        Beta = torch.nn.functional.relu(Beta)+1e-6
-
-        torch.manual_seed(self.seed)
-
-        self.dist = torch.distributions.beta.Beta(Alpha.float().cpu(),Beta.float().cpu())
-        self.N: torch.Tensor = self.dist.sample().to(dtype=input.dtype, device=input.device)
-        self.N.requires_grad_()
-        return self.N
+        A = torch.clamp(Alpha_unbound, min=1e-3)
+        B = torch.clamp(Beta_unbound, min=1e-3)
+        beta_dist = torch.distributions.beta.Beta(A,B)
+        N: torch.Tensor = beta_dist.rsample()
+        return N
 
 class NoiseModel(torch.nn.Module):
-    def __init__(self, grid_size=(9,9), lambda_delta = 1, lambda_speckle = 0.5, lambda_gamma=0.01, alpha=0.25) -> None:
+    def __init__(self, grid_size=(9,9), lambda_delta = 1, lambda_speckle = 0.7, lambda_gamma=0.3, alpha=0.25) -> None:
         super().__init__()
         self.grid_size = grid_size
         self.vessel_noise = ControlPointBetaNoise(self.grid_size)
@@ -73,27 +52,41 @@ class NoiseModel(torch.nn.Module):
         self.lambda_speckle = lambda_speckle
         self.lambda_gamma = lambda_gamma
         self.alpha = alpha
+        self.optimizer = None
 
     def forward(self, I: torch.Tensor, I_d: torch.Tensor, adversarial: bool, downsample_factor=1) -> torch.Tensor:
         size = [s for s in I.shape[2:]]
-        I_new = torch.nn.functional.interpolate(I, scale_factor=1/downsample_factor, mode="bilinear")
-        Delta = self.vessel_noise.forward(I_new, adversarial)
-        N = self.specle_noise(I_new, adversarial)
+        num_b = I.shape[0]
+        I_new: torch.Tensor = torch.nn.functional.interpolate(I, scale_factor=1/downsample_factor, mode="bilinear")
+
+        if self.optimizer is None:
+            self.vessel_noise.reset_params(num_b)
+            self.vessel_noise = self.vessel_noise.to(I.device)
+            self.specle_noise.reset_params(num_b)
+            self.specle_noise = self.specle_noise.to(I.device)
+            self.control_points_gamma = torch.nn.Parameter(
+                torch.zeros((num_b,1,*self.grid_size), dtype=I.dtype, device=I.device).uniform_(0,1)
+            ).to(I.device)
+            self.register_parameter("control_points_gamma", self.control_points_gamma)
+            self.optimizer = torch.optim.SGD(self.parameters(), lr=self.alpha)
         if not adversarial:
-            self.control_points_gamma = torch.rand((*I.shape[:-2],*self.grid_size), dtype=I.dtype, device=I.device)*(2*self.lambda_gamma)+(1-self.lambda_gamma)
+            self.optimizer.zero_grad()
+            self.vessel_noise.reset_params(num_b)
+            self.specle_noise.reset_params(num_b)
+            rg = self.control_points_gamma.requires_grad
+            self.control_points_gamma.requires_grad_(False).uniform_(0,1).requires_grad_(rg)
         else:
-            # FGSM
-            posterior = projected_gradient_ascent_step(self.control_points_gamma, alpha=self.alpha, lambda_x=2*self.lambda_gamma)
-            self.control_points_gamma = torch.clamp(posterior, 1-self.lambda_gamma, 1+self.lambda_gamma)
-        self.control_points_gamma.requires_grad_()
+            self.optimizer.step()
+            self.optimizer.zero_grad()
 
         with torch.cuda.amp.autocast():
+            Delta = self.vessel_noise.forward(I_new)[:num_b]
+            N = self.specle_noise.forward(I_new)[:num_b]
+            Gamma = torch.nn.functional.interpolate((torch.clamp(self.control_points_gamma,0,1)*(2*self.lambda_gamma)+(1-self.lambda_gamma))[:num_b], I_new.shape[-2:], mode="bicubic")
+
             D = I_d * self.lambda_delta * Delta
             I_new = torch.maximum(I_new, D)
-
             I_new = I_new * (self.lambda_speckle*N + (1-self.lambda_speckle))
-
-            
-            Gamma = torch.nn.functional.interpolate(self.control_points_gamma, I_new.shape[-2:], mode="bicubic")
             I_new = torch.pow(I_new+1e-6, Gamma)
+
             return torch.nn.functional.interpolate(I_new, size=size, mode="bilinear")

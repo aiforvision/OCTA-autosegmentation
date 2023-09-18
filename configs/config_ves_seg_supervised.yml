@@ -64,8 +64,10 @@ Train:
       - image
       - label
       spatial_size:
+      - 1216 # OCTA-500 / ROSE-1
       - 1216
-      - 1216
+      # - 360 # Giarratano
+      # - 360
       mode: bilinear
     - name: RandFlipd
       keys:
@@ -87,14 +89,6 @@ Train:
       prob: 1
       range_x: 0.17453292519943295
       padding_mode: zeros
-    # For Giarratano: Crop to 360x360
-    # - name: RandCropOrPadd
-    #   keys:
-    #     - image
-    #     - label
-    #   prob: 1
-    #   min_factor: 0.2965
-    #   max_factor: 0.2965
     - name: AsDiscreted
       keys:
       - label
@@ -112,6 +106,7 @@ Train:
       threshold: 0.5
     - name: RemoveSmallObjects
       min_size: 160
+      # min_size: 16 # Giarratano
     label:
     - name: CastToType
       dtype: uint8
@@ -149,6 +144,8 @@ Validation:
       spatial_size:
       - 1216
       - 1216
+      # - 360 # Giarratano
+      # - 360
       mode: bilinear
     - name: Rotate90d
       keys:
@@ -177,6 +174,7 @@ Validation:
       threshold: 0.5
     - name: RemoveSmallObjects
       min_size: 160
+      # min_size: 16 # Giarratano
     label:
     - name: CastToType
       dtype: uint8

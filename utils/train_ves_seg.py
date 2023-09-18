@@ -12,15 +12,17 @@ from tqdm import tqdm
 from data.image_dataset import get_dataset, get_post_transformation
 from utils.metrics import MetricsManager, Task
 from utils.losses import get_loss_function_by_name
-from utils.visualizer import Visualizer, plot_sample
+from utils.visualizer import Visualizer
 import copy
 
 def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
-    if args.split != "" and "split" in config["Train"]["data"]["image"]:
+    if args.split != "" and not config["Train"]["data"]["image"].get("split", ".txt").endswith(".txt"):
         config["Train"]["data"]["image"]["split"] = config["Train"]["data"]["image"]["split"] + args.split + ".txt"
         config["Train"]["data"]["label"]["split"] = config["Train"]["data"]["label"]["split"] + args.split + ".txt"
+    if args.split != "" and not config["Validation"]["data"]["image"].get("split", ".txt").endswith(".txt"):
         config["Validation"]["data"]["image"]["split"] = config["Validation"]["data"]["image"]["split"] + args.split + ".txt"
         config["Validation"]["data"]["label"]["split"] = config["Validation"]["data"]["label"]["split"] + args.split + ".txt"
+    if args.split != "" and not config["Test"]["data"]["image"].get("split", ".txt").endswith(".txt"):
         config["Test"]["data"]["image"]["split"] = config["Test"]["data"]["image"]["split"] + args.split + ".txt"
 
     max_epochs = config["Train"]["epochs"]
@@ -58,7 +60,7 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
             return (max_epochs-step) * (1/max(1,config["Train"]["epochs_decay"]))
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, schedule)
     metrics = MetricsManager(task)
-    if config["Train"].get("AT"):
+    if config["Train"].get("AT") is not None:
         at = get_loss_function_by_name("AtLoss", config, scaler, loss_function)
 
 
@@ -85,11 +87,7 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
             )
             optimizer.zero_grad()
             if config["Train"].get("AT"):
-                inputs_at, reg = at(model, inputs, batch_data["background"].to(device), labels)
-                inputs = torch.cat((inputs_at, inputs), dim=0)
-                labels = torch.tile(labels, (2,1,1,1))
-            else:
-                reg=0
+                inputs, labels = at(model, inputs, batch_data["background"].to(device), labels)
             with torch.cuda.amp.autocast():
                 outputs = model(inputs)
                 # if config["Data"]["num_classes"]==1:
@@ -100,7 +98,7 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
                 labels = [post_label(i) for i in decollate_batch(labels)]
                 outputs = [post_pred(i) for i in decollate_batch(outputs)]
                 metrics(y_pred=outputs, y=labels)
-            scaler.scale(loss+reg).backward()
+            scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
             epoch_loss += loss.item()
@@ -113,7 +111,7 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
         }
         epoch_metrics["metric"] = metrics.aggregate_and_reset(prefix="train")
         epoch_tqdm.set_description(f'avg train loss: {epoch_loss:.4f}')
-        if epoch%save_interval == 0:
+        if epoch%val_interval == 0:
             if task == Task.VESSEL_SEGMENTATION:
                 image_path_train = visualizer.plot_sample(inputs[0], outputs[0], labels[0], suffix='latest_train', path=batch_data["image_path"][0])
             else:
@@ -140,6 +138,8 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
                     val_labels = [post_label_val(i) for i in decollate_batch(val_labels)]
                     val_outputs = [post_pred_val(i) for i in decollate_batch(val_outputs)]
                     metrics(y_pred=val_outputs, y=val_labels)
+                    if step >= 40:
+                        break
 
                 epoch_metrics["loss"][f"val_{loss_name}"] = val_loss/step
                 epoch_metrics["metric"].update(metrics.aggregate_and_reset(prefix="val"))
@@ -152,7 +152,7 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
                     visualizer.save_model(model, optimizer, epoch, 'best')
 
                 visualizer.plot_losses_and_metrics(epoch_metrics, epoch)
-                if epoch%save_interval == 0:
+                if epoch%val_interval == 0:
                     if task == Task.VESSEL_SEGMENTATION:
                         image_path_val = visualizer.plot_sample(val_inputs[0], val_outputs[0], val_labels[0], suffix='latest_val')
                     else:

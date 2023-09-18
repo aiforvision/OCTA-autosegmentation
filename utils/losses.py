@@ -2,137 +2,110 @@ from monai.losses import DiceLoss
 import torch
 from torch.cuda.amp.grad_scaler import GradScaler
 from typing import Union
+from random import randint, uniform, choice
+from torchvision.transforms.functional import rotate, InterpolationMode
 
 from models.noise_model import NoiseModel
 
-class AtLoss(torch.nn.Module):
-    """
-    Computes an adversarial training loss by finding a small perturbation r_adv via power iteration that when applied to the
-    input image maximally increases the prediction error. The prediction model will then learn to generalize to this attack.
-    """
-    def __init__(self, scaler: GradScaler, loss_fun: torch.nn.Module, grid_size=None, eps=1.0, ip=1, alpha=1, grad_align_cos_lambda=0) -> None:
-        """
-        Parameters:
-            - scaler: GradScaler for amp training
-            - grad_size: control points for perturbation. For pixelwise attacks set to None
-            - eps: magnitude of perturbation for r_adv
-            - ip: Number of power iterations. If ip=1 then Fast gradient sign method (FGSM), else Projected Gradient Descent
-            - alpha: step-size during power iteration
-            - init: initialization type for noise vector. Either "zero" or "random"
-            - grad_align_cos_lambda: factor for GradAlign regulizer to prevent catastrophic overfitting for FGSM
-        """
-        super(AtLoss, self).__init__()
-        self.scaler = scaler
-        self.loss_fun = loss_fun
-        self.grid_size = grid_size
-        self.eps = eps
-        self.ip = ip
-        self.alpha = alpha
-        self.grad_align_cos_lambda = grad_align_cos_lambda
-
-    def l2_norm_batch(self, v: torch.Tensor):
-        """
-        Computes the batchwise L2-norm for a 4D tensor
-        """
-        norms = (v ** 2).sum([1, 2, 3]) ** 0.5
-        return norms
-
-    def compute_grad_align(self, grad1: torch.Tensor, grad2: torch.Tensor) -> torch.Tensor:
-        """
-        Computes the gradient alignment regularization term as proposed by https://arxiv.org/abs/2007.02617.
-        
-        Parameters:
-            - grad1: Gradient of r_adv when initialized with zero vector
-            - grad2: Gradient of r_adv when initialized with random vector
-        """
-        grad1_norms, grad2_norms = self.l2_norm_batch(grad1), self.l2_norm_batch(grad2)
-        grads_nnz_idx = (grad1_norms != 0) * (grad2_norms != 0)
-        grad1, grad2 = grad1[grads_nnz_idx], grad2[grads_nnz_idx]
-        grad1_norms, grad2_norms = grad1_norms[grads_nnz_idx], grad2_norms[grads_nnz_idx]
-        grad1_normalized = grad1 / grad1_norms[:, None, None, None]
-        grad2_normalized = grad2 / grad2_norms[:, None, None, None]
-        cos = torch.sum(grad1_normalized * grad2_normalized, (1, 2, 3))
-        reg = (1.0 - cos.mean())
-        return reg
-
-    def compute_r_adv(self, model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor, r_init="zero", backprop=True):
-        """
-        Computes an adversarial noise vector via power iteration that when applied to the input image
-        maximally increases the prediction error
-        
-        Parameters:
-            - model: predictor model
-            - x: input image
-            - y: input label
-            - r_init: initialization type for the noise vector
-            - backprob: Whether to compute the gradient graph
-        """
-        grid_size = self.grid_size
-        if grid_size is None:
-            grid_size = x.shape
-        r = torch.zeros(grid_size, device=x.device, dtype=x.dtype)
-        if r_init == "uniform":
-            r = r.uniform_(-self.eps, self.eps)
-        r.requires_grad_()
-        for i in range(self.ip):
-            if r.grad is not None:
-                r.grad.zero_()
-            with torch.cuda.amp.autocast():
-                pred = model(torch.clamp(x+r,0,1))
-                loss: torch.Tensor = self.loss_fun(pred, y)
-            self.scaler.scale(loss).backward()
-            #r.grad.div_(self.scaler.get_scale())  # reverse back the scaling
-                
-            grad = r.grad.detach()
-            r.data = r + self.alpha * self.eps * torch.sign(grad)
-            r.data = torch.clamp(x+r.data, 0, 1) - x
-            r.data = torch.clamp(r.data,-self.eps,self.eps)
-        return r.detach(), grad
-    
-    def forward(self, model: torch.nn.Module, x: torch.Tensor, y: torch.Tensor):
-        if self.grad_align_cos_lambda>0:
-            # Additionally compute gradient aligment regularization term
-            r, grad1 = self.compute_r_adv(model, x, y, "zero", False)
-            _, grad2 = self.compute_r_adv(model, x, y, "uniform", True)
-            reg = self.grad_align_cos_lambda * self.compute_grad_align(grad1,grad2)
-        else:
-            # Only compute adversarial noise vector
-            r, _ = self.compute_r_adv(model, x, y, "uniform", True)
-            reg = 0
-
-        return x+r, reg
-
 class ANTLoss(torch.nn.Module):
-    def __init__(self, scaler: GradScaler, loss_fun: torch.nn.Module, grid_size=(9,9)) -> None:
+    def __init__(self,
+                 scaler: GradScaler,
+                 loss_fun: torch.nn.Module,
+                 grid_size=(9,9),
+                 lambda_delta = 1,
+                 lambda_speckle = 0.7,
+                 lambda_gamma = 0.3,
+                 max_decrease_res=0.25,
+                 alpha=1e-3,
+                 crop=(1,1),
+                 label_threshold=0.1) -> None:
         super().__init__()
         self.noise_model = NoiseModel(
             grid_size = grid_size,
-            lambda_delta = 1,
-            lambda_speckle = 0.7,
-            lambda_gamma = 0.3,
-            alpha=0.2
+            lambda_delta = lambda_delta,
+            lambda_speckle = lambda_speckle,
+            lambda_gamma = lambda_gamma,
+            alpha=alpha
         )
         self.scaler = scaler
         self.loss_fun = loss_fun
+        self.crop = crop
+        self.max_decrease_res = max_decrease_res
+        self.decrease_res_factor = None
+        self.label_threshold = label_threshold
+
+    def _randomize_crop(self, sample: torch.Tensor):
+        if self.crop[0] != 1 or self.crop[1] != 1:
+            self.len_h = int(sample.shape[-2]*self.crop[0])
+            self.len_w = int(sample.shape[-1]*self.crop[1])
+            self.h_crop = [randint(0,sample.shape[-2]-self.len_h) for b in range(sample.shape[0])]
+            self.w_crop = [randint(0,sample.shape[-1]-self.len_w) for b in range(sample.shape[0])]
+
+    def _crop_sample(self, sample: torch.Tensor) -> torch.Tensor:
+        if self.crop[0] != 1 or self.crop[1] != 1:
+            out = []
+            for b in range(sample.shape[0]):
+                out.append(sample[b,:,self.h_crop[b]:self.h_crop[b]+self.len_h,self.w_crop[b]:self.w_crop[b]+self.len_w])
+            sample=torch.stack(out,dim=0)
+        return sample
+    
+    def _rand_decrease_res(self, img: torch.Tensor) -> torch.Tensor:
+        out = []
+        for b in range(img.shape[0]):
+            tmp = torch.nn.functional.interpolate(img[b:b+1], scale_factor=self.downsample_factor[b])
+            out.append(torch.nn.functional.interpolate(tmp, size=img.shape[-2:])[0])
+        return torch.stack(out, dim=0)
+    
+    def _rand_rotate(self, img: torch.Tensor) -> torch.Tensor:
+        out = []
+        for b in range(img.shape[0]):
+            tmp = torch.rot90(img[b:b+1], self.rot_k[b], dims=(-2,-1))
+            out.append(rotate(tmp, angle=self.rot_r[b], interpolation=InterpolationMode.BILINEAR)[0])
+        return torch.stack(out, dim=0)
+    
+    def _create_adversarial_sample(self, x: torch.Tensor, background: torch.Tensor, y: torch.Tensor, adversarial: bool):
+        with torch.cuda.amp.autocast():
+            # out = []
+            # for b in range(x.shape[0]):
+            #     out.append(self.noise_model.forward(x[b:b+1], background[b:b+1], False, downsample_factor=1)[0])
+            # adv_sample = torch.stack(out,dim=0)
+            adv_sample = self.noise_model.forward(x, background, adversarial, downsample_factor=1)
+            adv_sample = torch.nn.functional.interpolate(adv_sample, size=y.shape[-2:], mode="bilinear")
+            adv_sample = self._rand_decrease_res(adv_sample)
+            adv_sample = self._rand_rotate(adv_sample)
+            adv_sample = self._crop_sample(adv_sample)
+        return adv_sample
 
     def forward(self, model: torch.nn.Module, x: torch.Tensor, background: torch.Tensor, y: torch.Tensor):
         model.requires_grad_(False)
         self.noise_model.requires_grad_(True)
-        adv_sample = self.noise_model.forward(x, background, False, downsample_factor=4)
+        torch.autograd.set_detect_anomaly(True)
+
+        self.downsample_factor = [uniform(self.max_decrease_res,1) for batch in range(x.shape[0])]
+        self._randomize_crop(y)
+        self.rot_k = [choice([0,1,2,3]) for batch in range(x.shape[0])]
+        self.rot_r = [uniform(-10,10) for batch in range(x.shape[0])]
+    
+        y = self._rand_rotate(y)
+        y_crop = self._crop_sample(y)
+        y_crop[y_crop<self.label_threshold]=0.
+        y_crop[y_crop>=self.label_threshold]=1.
+
+        adv_sample = self._create_adversarial_sample(x,background,y, False)
+
         loss_trajectory = []
         num_iters = 3
         for i in range(num_iters):
             with torch.cuda.amp.autocast():
                 pred = model(adv_sample)
-                loss: torch.Tensor = self.loss_fun(pred, y)
+                loss: torch.Tensor = self.loss_fun(pred, y_crop)
                 loss_trajectory.append(loss.item())
             self.scaler.scale(-loss).backward()
-            # with torch.cuda.amp.autocast():
             if i == num_iters-1:
                 self.noise_model.requires_grad_(False)
-            adv_sample = self.noise_model.forward(x, background, True, downsample_factor=4)
+            adv_sample = self._create_adversarial_sample(x,background,y, True)
         model.requires_grad_(True)
-        return adv_sample.detach(), 0
+        return adv_sample.detach(), y_crop
 
 class DiceBCELoss():
     def __init__(self, sigmoid=False):
@@ -226,20 +199,20 @@ class LSGANLoss(torch.nn.Module):
         return loss.mean()
 
 
-def get_loss_function_by_name(name: str, config: dict, scaler: GradScaler=None, loss=None) -> Union[DiceBCELoss, torch.nn.CrossEntropyLoss, WeightedCosineLoss]:
+def get_loss_function_by_name(name: str, config: dict[str, dict], scaler: GradScaler=None, loss=None) -> Union[DiceBCELoss, torch.nn.CrossEntropyLoss, WeightedCosineLoss]:
     if "Data" in config:
         weight = 1/torch.tensor(config["Data"]["class_balance"], device=config["General"].get("device") or "cpu")
     else:
         weight = None
     loss_map = {
         # "AtLoss": AtLoss(scaler, loss, None, 200/255, 1, alpha=1.25 * (100/255), grad_align_cos_lambda=0),
-        "AtLoss": ANTLoss(scaler, loss, (9,9)),
-        "DiceBCELoss": DiceBCELoss(True),
-        "CrossEntropyLoss": torch.nn.CrossEntropyLoss(weight=weight),
-        "CosineEmbeddingLoss": WeightedCosineLoss(weights=weight),
-        "MSELoss": torch.nn.MSELoss(),
-        "WeightedMSELoss": WeightedMSELoss(weights=weight),
-        "QWKLoss": QWKLoss(),
-        "LSGANLoss": LSGANLoss().to(device=config["General"].get("device") or "cpu"),
+        "AtLoss": lambda: ANTLoss(scaler, loss, **(config["Train"].get("AT") or {})),
+        "DiceBCELoss": lambda: DiceBCELoss(True),
+        "CrossEntropyLoss": lambda: torch.nn.CrossEntropyLoss(weight=weight),
+        "CosineEmbeddingLoss": lambda: WeightedCosineLoss(weights=weight),
+        "MSELoss": lambda: torch.nn.MSELoss(),
+        "WeightedMSELoss": lambda: WeightedMSELoss(weights=weight),
+        "QWKLoss": lambda: QWKLoss(),
+        "LSGANLoss": lambda: LSGANLoss().to(device=config["General"].get("device") or "cpu"),
     }
-    return loss_map[name]
+    return loss_map[name]()

@@ -104,16 +104,14 @@ class NoiseModeld(MapTransform):
         lambda_speckle = 0.7,
         lambda_gamma = 0.3,
         alpha=0.2,
-        downsample_factor=1,
-        max_decrease_res=1
+        downsample_factor=1
     ) -> None:
         self.noise_model = NoiseModel(
             grid_size = grid_size,
             lambda_delta = lambda_delta,
             lambda_speckle = lambda_speckle,
             lambda_gamma = lambda_gamma,
-            alpha=alpha,
-            max_decrease_res=max_decrease_res
+            alpha=alpha
         )
         self.prob = prob
         self.downsample_factor = downsample_factor
@@ -124,7 +122,7 @@ class NoiseModeld(MapTransform):
             for key in self.keys:
                 img: torch.Tensor = data[key]
                 background: torch.Tensor = data["background"]
-                d = self.noise_model.forward(img.unsqueeze(0), background, False, downsample_factor=self.downsample_factor).squeeze(0).detach()
+                d = self.noise_model.forward(img.unsqueeze(0), background.unsqueeze(0), False, downsample_factor=self.downsample_factor).squeeze(0).detach()
                 data[key]=d
         return data
 
