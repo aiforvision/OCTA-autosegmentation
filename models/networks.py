@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from models.gan_seg_model import GanSegModel
 from models.oof import OOF
 from models.frangi import Frangi
+from models.skrgan import SkrGAN
 
 V = TypeVar("V")
 
@@ -516,5 +517,6 @@ MODEL_DICT: dict[str, Union[ResnetGenerator, NLayerDiscriminator, DynUNet]] = {
     "resnetGenerator9": resnetGenerator9,
     "patchGAN70x70": patchGAN70x70,
     "oof": OOF,
-    "frangi": Frangi
+    "frangi": Frangi,
+    "skrgan": SkrGAN
 }
