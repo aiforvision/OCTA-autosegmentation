@@ -32,13 +32,14 @@ class Visualizer():
         self.epochs = []
         self.log_file_path = None
         self.tb = None
+        self.start_epoch = int(epoch) if epoch.isnumeric() else None
 
         if continue_train:
             name = config["Output"]["save_dir"].split("/")[-1]
             self.save_dir = os.path.join(config["Output"]["save_dir"][:-len(name)], datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
             os.mkdir(self.save_dir)
             os.mkdir(os.path.join(self.save_dir, "checkpoints"))
-            self._copy_log_file(config["Output"]["save_dir"], self.save_dir)
+            self._copy_log_file(config["Output"]["save_dir"], self.save_dir, self.start_epoch)
             self._copy_best_checkpoint(config["Output"]["save_dir"], self.save_dir, epoch)
             with open(self.log_file_path, newline='') as csvfile:
                 reader = csv.DictReader(csvfile)
@@ -52,6 +53,8 @@ class Visualizer():
                         d["metric"] = {k: float(v) for k,v in list(row.items())[3:]}
                     self.track_record.append(d)
                     self.epochs.append(int(row["epoch"]))
+                    if epoch.isnumeric() and self.epochs[-1] > int(epoch):
+                        break
             if self.save_to_tensorboard:
                 self.tb = SummaryWriter(log_dir=self.save_dir)
                 for epoch,metric_groups in zip(self.epochs,self.track_record):
@@ -67,7 +70,7 @@ class Visualizer():
         
         config["Output"]["save_dir"] = self.save_dir
         config["Test"]["save_dir"] = os.path.join(self.save_dir, 'test')
-        config["Validation"]["save_dir"] = os.path.join(self.save_dir, 'val')
+        # config["Validation"]["save_dir"] = os.path.join(self.save_dir, 'val')
         config["Test"]["model_path"] = os.path.join(self.save_dir, 'best_model.pth')
         with open(os.path.join(self.save_dir, 'config.yml'), 'w') as f:
             yaml.dump(config, f)
@@ -80,10 +83,17 @@ class Visualizer():
             writer = csv.writer(file)
             writer.writerow(["epoch", *titles])
 
-    def _copy_log_file(self, old_dir, new_dir):
+    def _copy_log_file(self, old_dir, new_dir, epoch=None):
         old_log_file_path = os.path.join(old_dir, 'metrics.csv')
         self.log_file_path = os.path.join(new_dir, 'metrics.csv')
-        copyfile(old_log_file_path,self.log_file_path)
+        if epoch:
+            with open(old_log_file_path, mode="r") as f:
+                rows = f.readlines()
+                rel_rows = rows[0:epoch+1]
+            with open(self.log_file_path, mode="w") as f:
+                f.writelines(rel_rows)
+        else:
+            copyfile(old_log_file_path,self.log_file_path)
 
     def _copy_best_checkpoint(self, old_dir, new_dir, epoch="latest"):
         checkpoint_dir = os.path.join(new_dir, "checkpoints")
@@ -145,6 +155,8 @@ class Visualizer():
                 ax.set_xlabel("epoch")
                 ax.plot(self.epochs, data_y)
                 ax.legend(list(record.keys()))
+                if self.start_epoch:
+                    ax.axvline(x=self.start_epoch)
 
                 i+=1
             plt.savefig(os.path.join(self.save_dir, 'loss.png'), bbox_inches='tight')
@@ -273,43 +285,6 @@ class Visualizer():
         fig, _ = plt.subplots(2, 3, figsize=(3*inches[1]/div, 2*inches[0]/div))
         plt.title(f"A: {name_A}, B: {name_B}")
         for i, (title, img) in enumerate(images.items()):
-            fig.axes[i].imshow(img, cmap='gray')
-            fig.axes[i].set_title(title)
-        path = os.path.join(self.save_dir, f'latest.png')
-        plt.savefig(path, bbox_inches='tight')
-        plt.close()
-        if save_epoch:
-            copyfile(path, os.path.join(self.save_dir, f'{epoch}.png'))
-
-    def plot_cut_sample(
-        self,
-        real_A: torch.Tensor,
-        fake_B: torch.Tensor,
-        real_B: torch.Tensor,
-        idt_B: torch.Tensor,
-        epoch: int,
-        path_A: str,
-        path_B: str,
-        save_epoch=False,
-        full_size=True):
-        
-        images = {
-            "real_A": real_A,
-            "real_B": real_B,
-            "fake_B": fake_B,
-            "idt_B": idt_B
-        }
-        images = {k: (v.squeeze().detach().clip(0,1).cpu().numpy() * 255).astype(np.uint8) if v is not None else np.zeros((2,2), dtype=np.uint8) for k,v in images.items()}
-
-        name_A = path_A.split("/")[-1]
-        name_B = path_B.split("/")[-1]
-        div = (1 if full_size else 2)
-        inches = get_fig_size(real_A)
-        fig, _ = plt.subplots(2, 2, figsize=(2*inches[1]/div, 2*inches[0]/div))
-        plt.title(f"A: {name_A}, B: {name_B}")
-        for i, (title, img) in enumerate(images.items()):
-            if len(img.shape)==3:
-                img=img[0]
             fig.axes[i].imshow(img, cmap='gray')
             fig.axes[i].set_title(title)
         path = os.path.join(self.save_dir, f'latest.png')

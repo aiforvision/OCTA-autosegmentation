@@ -185,7 +185,7 @@ def voxelize_forest(forest: dict,
 
     Parameters:
     -----------
-        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'.
+        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'. The coordinates are expected to be within 0-1. If you normalize your coordinates make sure to scale the radius by the same factor.
         - volume_dimensions: Dimensions of the final 3D volume
         - MIP_axis: Axis along which to take the maximum intensity projection. Default is the z dimension
         - radius_list: A list to collect all edge radii. Default is None
@@ -236,7 +236,6 @@ def voxelize_forest(forest: dict,
             continue
         radius_list.append(radius)
 
-        radius *= scale_factor
         current_node = np.array(current_node)*scale_factor
         proximal_node = np.array(proximal_node)*scale_factor
 
