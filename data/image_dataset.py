@@ -15,15 +15,12 @@ from utils.metrics import Task
 from data.unalignedZipDataset import UnalignedZipDataset
 set_track_meta(False)
 
-def _get_transformation(config, task: Task, phase: str, dtype=torch.float32) -> Compose:
+def _get_transformation(config, phase: str, dtype=torch.float32) -> Compose:
     """
     Create and return the data transformations for 2D segmentation images the given phase.
     """
-    if task == Task.VESSEL_SEGMENTATION or task == Task.GAN_VESSEL_SEGMENTATION:
-        aug_config = config[phase.capitalize()]["data_augmentation"]
-        return Compose(get_data_augmentations(aug_config, dtype))
-    else:
-        raise NotImplementedError("Task: "+ task)
+    aug_config = config[phase.capitalize()]["data_augmentation"]
+    return Compose(get_data_augmentations(aug_config, dtype))
 
 def get_post_transformation(config: dict, phase: str) -> tuple[Compose]:
     """
@@ -48,7 +45,7 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoa
     Creates and return the dataloader for the given phase.
     """
     task = config["General"]["task"]
-    transform = _get_transformation(config, task, phase, dtype=torch.float16 if bool(config["General"].get("amp")) else torch.float32)
+    transform = _get_transformation(config, phase, dtype=torch.float16 if bool(config["General"].get("amp")) else torch.float32)
 
     data_settings: dict = config[phase.capitalize()]["data"]
     data = dict()

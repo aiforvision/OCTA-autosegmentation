@@ -211,7 +211,7 @@ class Visualizer():
         s += f"\nTotal Trainable Params: {total_params}"
         return s
 
-    def save_model_architecture(self, model: torch.nn.Module, batch):
+    def save_model_architecture(self, model: torch.nn.Module, batch=None):
         with open(os.path.join(self.save_dir, 'architecture.txt'), 'w+') as f:
             f.writelines(str(model))
             f.write("\n")
@@ -226,8 +226,8 @@ class Visualizer():
         torch.save(
             {
                 'epoch': epoch,
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict()
+                'model': model.state_dict() if model is not None else None,
+                'optimizer': optimizer.state_dict() if optimizer is not None else None
             },
             path,
         )

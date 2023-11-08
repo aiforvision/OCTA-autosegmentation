@@ -59,7 +59,7 @@ def vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
         else:
             return (max_epochs-step) * (1/max(1,config["Train"]["epochs_decay"]))
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, schedule)
-    metrics = MetricsManager(task)
+    metrics = MetricsManager(phase="train")
     if config["Train"].get("AT") is not None:
         at = get_loss_function_by_name("AtLoss", config, scaler, loss_function)
 

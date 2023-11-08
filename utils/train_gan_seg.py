@@ -57,7 +57,7 @@ def gan_vessel_segmentation_train(args: Namespace, config: dict[str,dict]):
     lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(optimizer_G, schedule)
     lr_scheduler_D = torch.optim.lr_scheduler.LambdaLR(optimizer_D, schedule)
     lr_scheduler_S = torch.optim.lr_scheduler.LambdaLR(optimizer_S, schedule)
-    metrics = MetricsManager(task)
+    metrics = MetricsManager(phase="train")
 
     total_start = time.time()
     epoch_tqdm = tqdm(range(args.start_epoch,max_epochs), desc="epoch")

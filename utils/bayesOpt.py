@@ -50,7 +50,7 @@ def training_function(config: dict):
 
     device = torch.device(config["General"].get("device") or "cpu")
     model = define_model(config, phase="val")
-    metrics = MetricsManager(task)
+    metrics = MetricsManager()
 
     model.eval()
     # while True:

@@ -75,7 +75,7 @@ def training_function(config: dict):
         else:
             return (max_epochs-step) * (1/max(1,config["Train"]["epochs_decay"]))
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, schedule)
-    metrics = MetricsManager(task)
+    metrics = MetricsManager()
 
     for epoch in range(max_epochs):
         model.train()

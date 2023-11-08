@@ -61,11 +61,10 @@ with torch.no_grad():
         outputs = model(inputs)
         outputs = [post_pred(i).cpu() for i in decollate_batch(outputs)]
 
-        if task == Task.VESSEL_SEGMENTATION or task == Task.GAN_VESSEL_SEGMENTATION:
-            inference_mode = config["General"].get("inference") or "pred"
-            image_name: str = test_data[input_key+"_path"][0].split("/")[-1]
-            
-            # plot_single_image(save_dir, inputs[0], image_name)
-            plot_single_image(save_dir, outputs[0], inference_mode + "_" + image_name)
-            if config["Output"].get("save_comparisons"):
-                plot_sample(save_dir, inputs[0], outputs[0], None, test_data[input_key+"_path"][0], suffix=f"{inference_mode}_{image_name}", full_size=True)
+        inference_mode = config["General"].get("inference") or "pred"
+        image_name: str = test_data[input_key+"_path"][0].split("/")[-1]
+        
+        # plot_single_image(save_dir, inputs[0], image_name)
+        plot_single_image(save_dir, outputs[0], inference_mode + "_" + image_name)
+        if config["Output"].get("save_comparisons"):
+            plot_sample(save_dir, inputs[0], outputs[0], None, test_data[input_key+"_path"][0], suffix=f"{inference_mode}_{image_name}", full_size=True)
