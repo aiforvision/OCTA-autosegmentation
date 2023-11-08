@@ -263,10 +263,9 @@ class Visualizer():
         real_B: torch.Tensor,
         idt_B: torch.Tensor,
         real_B_seg: torch.Tensor,
-        epoch: int,
         path_A: str,
         path_B: str,
-        save_epoch=False,
+        suffix: str,
         full_size=True):
         
         name_A = path_A.split("/")[-1]
@@ -287,11 +286,10 @@ class Visualizer():
         for i, (title, img) in enumerate(images.items()):
             fig.axes[i].imshow(img, cmap='gray')
             fig.axes[i].set_title(title)
-        path = os.path.join(self.save_dir, f'latest.png')
+        path = os.path.join(self.save_dir, f'sample_{suffix}.png')
         plt.savefig(path, bbox_inches='tight')
         plt.close()
-        if save_epoch:
-            copyfile(path, os.path.join(self.save_dir, f'{epoch}.png'))
+        return path
 
 def plot_single_image(save_dir:str, input: torch.Tensor, name:str=None):
     if len(input.shape)>2:

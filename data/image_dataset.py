@@ -22,22 +22,19 @@ def _get_transformation(config, phase: str, dtype=torch.float32) -> Compose:
     aug_config = config[phase.capitalize()]["data_augmentation"]
     return Compose(get_data_augmentations(aug_config, dtype))
 
-def get_post_transformation(config: dict, phase: str) -> tuple[Compose]:
+def get_post_transformation(config: dict, phase: str) -> dict[str, Compose]:
     """
     Create and return the data transformation that is applied to the label and the model prediction before inference.
     """
     aug_config: dict = config[phase.capitalize()]["post_processing"]
-    try:
-        pred_aug = Compose(get_data_augmentations(aug_config.get("prediction")))
-    except Exception as e:
-        print("Error: Your provided data augmentations for prediction are invalid.\n")
-        raise e
-    try:
-        label_aug = Compose(get_data_augmentations(aug_config.get("label")))
-    except Exception as e:
-        print("Error: Your provided data augmentations for label are invalid.\n")
-        raise e
-    return pred_aug, label_aug
+    post_transformations = dict()
+    for k,v in aug_config.items():
+        try:
+            post_transformations[k] = get_data_augmentations(v)
+        except Exception as e:
+            print("Error: Your provided data augmentations for prediction are invalid.\n")
+            raise e
+    return post_transformations
 
 
 def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoader:
