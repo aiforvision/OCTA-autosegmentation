@@ -49,8 +49,8 @@ with torch.no_grad():
         for val_data in tqdm(val_loader, desc='Validation'):
             step += 1
             val_inputs, val_labels = (
-                val_data["image"].to(device).float(),
-                val_data["label"].to(device),
+                val_data["image"].to(device, non_blocking=True).float(),
+                val_data["label"].to(device, non_blocking=True),
             )
             val_outputs: torch.Tensor = model(val_inputs)
             val_outputs = [post_pred(i) for i in decollate_batch(val_outputs)]

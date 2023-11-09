@@ -30,7 +30,7 @@ def get_post_transformation(config: dict, phase: str) -> dict[str, Compose]:
     post_transformations = dict()
     for k,v in aug_config.items():
         try:
-            post_transformations[k] = get_data_augmentations(v)
+            post_transformations[k] =  Compose(get_data_augmentations(v))
         except Exception as e:
             print("Error: Your provided data augmentations for prediction are invalid.\n")
             raise e

@@ -211,13 +211,18 @@ class Visualizer():
         s += f"\nTotal Trainable Params: {total_params}"
         return s
 
-    def save_model_architecture(self, model: torch.nn.Module, batch=None):
+    def save_model_architecture(self, model: torch.nn.Module, input: torch.Tensor):
+        if self.save_to_tensorboard:
+            print("Warning: Larger memory consumption while saving to tensorboard. Set 'save_to_tensorboard=False' if you want to skip this.")
+            self.tb.add_graph(model, input.float())
+        else:
+            with torch.no_grad():
+                with torch.cuda.amp.autocast():
+                    model.forward(input)
         with open(os.path.join(self.save_dir, 'architecture.txt'), 'w+') as f:
             f.writelines(str(model))
             f.write("\n")
             f.writelines(self._count_parameters(model))
-        if self.save_to_tensorboard:
-            self.tb.add_graph(model, batch)
 
     def save_model(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int, prefix: str="") -> str:
         if not os.path.exists(os.path.join(self.save_dir, "checkpoints")):
@@ -278,7 +283,7 @@ class Visualizer():
             "Identity OCTA": idt_B,
             "Predicted Segmentation Map": real_B_seg
         }
-        images = {k: (v.squeeze().detach().clip(0,1).cpu().numpy() * 255).astype(np.uint8) for k,v in images.items() if v is not None}
+        images = {k: (v.squeeze().detach().float().clip(0,1).cpu().numpy() * 255).astype(np.uint8) for k,v in images.items() if v is not None}
         div = (1 if full_size else 2)
         inches = get_fig_size(real_A)
         fig, _ = plt.subplots(2, 3, figsize=(3*inches[1]/div, 2*inches[0]/div))

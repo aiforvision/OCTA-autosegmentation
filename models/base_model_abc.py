@@ -1,13 +1,13 @@
 import os
 import torch
 from torch import nn
-from typing import Any, Tuple
-from monai.data import decollate_batch
+from typing import Any, Callable, Tuple, Literal
 import itertools
-from models.model_interface_abc import ModelInterface
+from models.model_interface_abc import ModelInterface, Output
 from utils.decorators import overrides
 from abc import ABC, abstractmethod
 from torch.cuda.amp.grad_scaler import GradScaler
+from utils.metrics import MetricsManager
 
 class BaseModelABC(nn.Module, ModelInterface, ABC):
     """
@@ -20,7 +20,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
         self.optimizer_mapping: dict[str, list[str]] = optimizer_mapping or { "optimizer": [] }
 
     @overrides(ModelInterface)
-    def initialize_model_and_optimizer(self, init_weights: function, config: dict, args, scaler: GradScaler, phase="train"):
+    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler: GradScaler, phase="train"):
         """
         Initializes the model weights.
         If a pretrained model is used, the respective checkpoint will be loaded and all weights assigned (including the optimizer weights).
@@ -36,7 +36,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
                 setattr(self,optim_name, torch.optim.Adam(itertools.chain(*parameters),
                     lr=config["Train"]["lr"],
                     betas=(0.5, 0.999),
-                    weight_decay=config["Train"]["weight_decay"]
+                    weight_decay=config["Train"].get("weight_decay", 0)
                 ))
 
             # Initialize LR scheduler TODO
@@ -76,7 +76,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
                     m: nn.Module = getattr(self, net_name)
                     activation = 'relu' if "resnet" in m._get_name().lower() else 'leaky_relu'
                     init_weights(m, init_type='kaiming', nonlinearity=activation)
-                    print("Initialized network weights")
+                    print(f"Initialized {net_name} network weights")
         else:
             # Only load necessary network parts for inference
             checkpoint = torch.load(model_path.replace('model.pth', f'{config["General"]["inference"]}_model.pth'), map_location=torch.device(config["General"]["device"]))
@@ -84,41 +84,63 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
             net: nn.Module = getattr(self, config["General"]["inference"])
             net.load_state_dict(checkpoint['model'])
             print(f"Loaded network weights {config['General']['inference']} from epoch {checkpoint['epoch']}.")
-    
+
     @abstractmethod
-    def forward(self, mini_batch: dict[str, Any], device: torch.device) -> Tuple[dict[str, torch.Tensor], dict[str, torch.Tensor]]:
+    @overrides(ModelInterface)
+    def inference(self,
+                mini_batch: dict[str, Any],
+                post_transformations: dict[str, Callable],
+                device: torch.device = "cpu",
+                phase: Literal["train", "val", "test"] = "test"
+        ) -> Tuple[Output, dict[str, torch.Tensor]]:
         """
         Computes a full forward pass given a mini_batch.
 
         Parameters:
         -----------
         - mini_batch: Dictionary containing the inputs and their names
+        - post_transformations: Dictionary containing the post transformation for every output
+        - device: Device on which to compute
+        - phase: Either training, validation or test phase
 
         Returns:
         --------
-        - Dictionary containing the outputs and their names
-        - Dictionary containing the losses and their names
+        - Dictionary containing the predictions and their names
+        - Dictionary containing the loss values and their names
+        """
+        raise NotImplementedError()
+    
+    @abstractmethod
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        """
+        Performs a minimal forward pass of the underlying model.
+
+        Parameters:
+        -----------
+        input: Input image as tensor
+
+        Returns:
+        --------
+        prediction: Predicted tensor
         """
         raise NotImplementedError()
     
     @overrides(ModelInterface)
-    def perform_step(self,
+    def perform_training_step(self,
             mini_batch: dict[str, Any],
             scaler: torch.cuda.amp.grad_scaler.GradScaler,
-            post_transformations: dict[str, function],
-            device: torch.device = "cpu",
-            optimize=False
-        ) -> Tuple[dict[str, Any], dict[str, torch.Tensor]]:
+            post_transformations: dict[str, Callable],
+            device: torch.device = "cpu"
+        ) -> Tuple[Output, dict[str, float]]:
         self.optimizer: torch.optim.Optimizer
         with torch.cuda.amp.autocast():
-            preds, losses = self.forward(mini_batch, device)
+            outputs, losses = self.inference(mini_batch, post_transformations, device, phase="train")
             loss = sum(list(losses.values()))
-        if optimize:
-            scaler.scale(loss).backward()
-            scaler.step(self.optimizer)
-            scaler.update()
-
-        outputs = {
-            k: [post_transformations[k](i) for i in decollate_batch(v[0:1, 0:1])] for (k,v) in preds
-        }
+        scaler.scale(loss).backward()
+        scaler.step(self.optimizer)
+        scaler.update()
         return outputs, losses
+    
+    @overrides(ModelInterface)
+    def compute_metric(self, outputs: Output, metrics: MetricsManager) -> None:
+        metrics(y_pred=outputs["prediction"], y=outputs["label"])

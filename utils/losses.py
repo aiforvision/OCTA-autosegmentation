@@ -164,7 +164,7 @@ class QWKLoss(torch.nn.Module):
 
     def forward(self, output, target):
         # Keep trace of output dtype for half precision training
-        target = torch.nn.functional.one_hot(target.squeeze().long(), num_classes=self.num_classes).to(target.device).type(output.dtype)
+        target = torch.nn.functional.one_hot(target.squeeze().long(), num_classes=self.num_classes).to(target.device, non_blocking=True).type(output.dtype)
         output = torch.softmax(output, dim=1)
         return self.quadratic_kappa_loss(output, target, self.scale)
 
@@ -213,6 +213,6 @@ def get_loss_function_by_name(name: str, config: dict[str, dict], scaler: GradSc
         "MSELoss": lambda: torch.nn.MSELoss(),
         "WeightedMSELoss": lambda: WeightedMSELoss(weights=weight),
         "QWKLoss": lambda: QWKLoss(),
-        "LSGANLoss": lambda: LSGANLoss().to(device=config["General"].get("device") or "cpu"),
+        "LSGANLoss": lambda: LSGANLoss().to(device=config["General"].get("device") or "cpu", non_blocking=True),
     }
     return loss_map[name]()
