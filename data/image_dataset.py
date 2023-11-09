@@ -42,7 +42,7 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoa
     Creates and return the dataloader for the given phase.
     """
     task = config["General"]["task"]
-    transform = _get_transformation(config, phase, dtype=torch.float16 if bool(config["General"].get("amp")) else torch.float32)
+    transform = _get_transformation(config, phase, dtype=torch.float16 if phase=="train" and bool(config["General"].get("amp")) else torch.float32)
 
     data_settings: dict = config[phase.capitalize()]["data"]
     data = dict()

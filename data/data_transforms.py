@@ -61,6 +61,8 @@ class LoadGraphAndFilterByRandomRadiusd(MapTransform):
     def __call__(self, data):
         blackdict = None
         for i, key in enumerate(self.keys):
+            if key not in data and self.allow_missing_keys:
+                continue
             f: list[dict] = list()
             with open(data[key], newline='') as csvfile:
                 reader = csv.DictReader(csvfile)

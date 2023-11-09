@@ -79,7 +79,13 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
                     print(f"Initialized {net_name} network weights")
         else:
             # Only load necessary network parts for inference
-            checkpoint = torch.load(model_path.replace('model.pth', f'{config["General"]["inference"]}_model.pth'), map_location=torch.device(config["General"]["device"]))
+            model_prefix = config["General"].get("inference")
+            model_prefix = model_prefix + "_" if model_prefix else ""
+            checkpoint = torch.load(model_path.replace('model.pth', f'{model_prefix}model.pth'), map_location=torch.device(config["General"]["device"]))
+            config["General"]["inference"] = config["General"].get("inference") or "model"
+            # Legacy compatibility
+            config["General"]["inference"] = "segmentor" if config["General"]["inference"] == "S" else config["General"]["inference"]
+            config["General"]["inference"] = "generator" if config["General"]["inference"] == "G" else config["General"]["inference"]
             assert hasattr(self, config["General"]["inference"]), f'Inference mode {config["General"]["inference"]} not implemented.'
             net: nn.Module = getattr(self, config["General"]["inference"])
             net.load_state_dict(checkpoint['model'])
