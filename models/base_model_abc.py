@@ -139,6 +139,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
         scaler.scale(loss).backward()
         scaler.step(self.optimizer)
         scaler.update()
+        losses = {k: v.item() for k,v in losses.items()}
         return outputs, losses
     
     @overrides(ModelInterface)

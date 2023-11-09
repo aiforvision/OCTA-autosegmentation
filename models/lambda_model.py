@@ -16,10 +16,10 @@ class LambdaModel(BaseModelABC):
         self.model = MODEL_DICT[model_name](**kwargs)
 
     overrides(BaseModelABC)
-    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler: GradScaler, phase="train") -> None:
+    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict[str, dict], args, scaler: GradScaler, phase="train") -> None:
         self.loss_name = config["Train"]["loss"]
         self.loss_function = get_loss_function_by_name(self.loss_name, config)
-        if config["Train"].get("AT") is not None:
+        if config["Train"].get("AT", False):
             self.at = get_loss_function_by_name("AtLoss", config, scaler, self.loss_function)
         super().initialize_model_and_optimizer(init_weights, config, args, scaler, phase)
 
@@ -31,12 +31,14 @@ class LambdaModel(BaseModelABC):
             phase: Literal["train", "val", "test"] = "test"
         ) -> Tuple[Output, dict[str, torch.Tensor]]:
         inputs =  mini_batch["image"].to(device, non_blocking=True)
+        if phase!="test":
+            labels = mini_batch["label"].to(device, non_blocking=True)
         if phase=="train" and hasattr(self, "at"):
             inputs, labels = self.at(self.model, inputs, mini_batch["background"].to(device, non_blocking=True), labels)
+            mini_batch["image"] = inputs.detach()
         pred = self.model(inputs).squeeze(-1)
         outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1, 0:1])] }
-        if phase == "val":
-            labels = mini_batch["label"].to(device, non_blocking=True)
+        if phase != "test":
             outputs["label"] = [post_transformations["label"](i) for i in decollate_batch(labels[0:1, 0:1])]
             losses = { self.loss_name: self.loss_function(y_pred=pred, y=labels) }
         else:

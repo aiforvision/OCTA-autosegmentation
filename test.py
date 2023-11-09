@@ -57,7 +57,7 @@ with torch.no_grad():
             break
         num_sample+=1
         input_key = [k for k in test_data.keys() if not k.endswith("_path")][0]
-        inputs = test_data[input_key].to(device).float()
+        inputs = test_data[input_key].to(device, non_blocking=True).float()
         outputs = model(inputs)
         outputs = [post_pred(i).cpu() for i in decollate_batch(outputs)]
 
