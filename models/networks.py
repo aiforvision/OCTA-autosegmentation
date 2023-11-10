@@ -10,6 +10,7 @@ from models.gan_seg_model import GanSegModel
 from models.oof import OOF
 from models.frangi import Frangi
 from models.skrgan import SkrGAN
+from models.cycle_gan import CycleGAN
 
 V = TypeVar("V")
 
@@ -518,5 +519,6 @@ MODEL_DICT: dict[str, Union[ResnetGenerator, NLayerDiscriminator, DynUNet]] = {
     "patchGAN70x70": patchGAN70x70,
     "oof": OOF,
     "frangi": Frangi,
-    "skrgan": SkrGAN
+    "skrgan": SkrGAN,
+    "CycleGAN": CycleGAN
 }

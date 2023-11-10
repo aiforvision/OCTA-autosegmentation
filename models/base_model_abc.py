@@ -78,7 +78,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
                     m: nn.Module = getattr(self, net_name)
                     activation = 'relu' if "resnet" in m._get_name().lower() else 'leaky_relu'
                     init_weights(m, init_type='kaiming', nonlinearity=activation)
-                    print(f"Initialized {net_name} network weights")
+                    print(f"Initialized {net_name} network weights using He initialization ({activation}).")
         else:
             # Only load necessary network parts for inference
             model_prefix = config["General"].get("inference")

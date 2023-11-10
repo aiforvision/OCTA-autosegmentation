@@ -212,13 +212,16 @@ class Visualizer():
         return s
 
     def save_model_architecture(self, model: torch.nn.Module, input: torch.Tensor):
-        if self.save_to_tensorboard:
-            print("Warning: Larger memory consumption while saving to tensorboard. Set 'save_to_tensorboard=False' if you want to skip this.")
-            self.tb.add_graph(model, input.float())
+        if input is not None:
+            if self.save_to_tensorboard:
+                print("Warning: Larger memory consumption while saving to tensorboard. Set 'save_to_tensorboard=False' if you want to skip this.")
+                self.tb.add_graph(model, input.float())
+            else:
+                with torch.no_grad():
+                    with torch.cuda.amp.autocast():
+                        model.forward(input)
         else:
-            with torch.no_grad():
-                with torch.cuda.amp.autocast():
-                    model.forward(input)
+            print("No input given for test run. Saved architecture might change after first run!")
         with open(os.path.join(self.save_dir, 'architecture.txt'), 'w+') as f:
             f.writelines(str(model))
             f.write("\n")

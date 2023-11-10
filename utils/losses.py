@@ -215,6 +215,7 @@ def get_loss_function_by_name(name: str, config: dict[str, dict], scaler: GradSc
         "WeightedMSELoss": lambda: WeightedMSELoss(weights=weight),
         "QWKLoss": lambda: QWKLoss(),
         "LSGANLoss": lambda: LSGANLoss().to(device=config["General"].get("device") or "cpu", non_blocking=True),
+        "L1Loss": lambda: torch.nn.L1Loss().to(device=config["General"].get("device") or "cpu", non_blocking=True),
     }
     if name in loss_map:
         return loss_map[name]()

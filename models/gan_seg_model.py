@@ -64,8 +64,8 @@ class GanSegModel(BaseModelABC):
         ) -> Tuple[Output, dict[str, torch.Tensor]]:
         assert phase==Phase.VALIDATION or phase==Phase.TEST, "This forward function only supports val and test. Use perform_step for training"
         input: torch.Tensor = mini_batch["image"].to(device=device, non_blocking=True)
-        losses = dict()
         pred = self.forward(input)
+        losses = dict()
         outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1,0:1])]}
         if self.segmentor is not None and phase == Phase.VALIDATION:
             labels: torch.Tensor = mini_batch["label"].to(device=device, non_blocking=True)

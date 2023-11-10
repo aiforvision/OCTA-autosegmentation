@@ -21,6 +21,8 @@ from utils.enums import Phase
 
 def train(args: argparse.Namespace, config: dict[str,dict]):
     for phase in Phase:
+        if phase not in config:
+            continue
         for k in config[phase]["data"].keys():
             if not config[phase]["data"][k].get("split", ".txt").endswith(".txt"):
                 assert bool(args.split), "You have to specify a split!"
@@ -29,24 +31,27 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
     max_epochs = config[Phase.TRAIN]["epochs"]
     val_interval = config[Phase.TRAIN].get("val_interval") or 1
     save_interval = config[Phase.TRAIN].get("save_interval") or 100
-    VAL_AMP = bool(config["General"].get("amp"))
     # use amp to accelerate training
-    scaler = torch.cuda.amp.GradScaler(enabled=VAL_AMP)
+    scaler = torch.cuda.amp.GradScaler(enabled=bool(config["General"].get("amp")))
     device = torch.device(config["General"].get("device") or "cpu")
     visualizer = Visualizer(config, args.start_epoch>0, epoch=args.epoch)
-
-
-    train_loader = get_dataset(config, Phase.TRAIN)
-    post_transformations_train = get_post_transformation(config, Phase.TRAIN)
-
-    val_loader = get_dataset(config, Phase.VALIDATION)
-    post_transformations_val = get_post_transformation(config, Phase.VALIDATION)
 
     model: BaseModelABC = define_model(deepcopy(config), phase = Phase.TRAIN)
     model.initialize_model_and_optimizer(init_weights, config, args, scaler, phase=Phase.TRAIN)
 
-    mini_batch = next(iter(val_loader))
-    visualizer.save_model_architecture(model, mini_batch["image"].to(device, non_blocking=True))
+    train_loader = get_dataset(config, Phase.TRAIN)
+    post_transformations_train = get_post_transformation(config, Phase.TRAIN)
+
+    if Phase.VALIDATION in config:
+        val_loader = get_dataset(config, Phase.VALIDATION)
+        post_transformations_val = get_post_transformation(config, Phase.VALIDATION)
+        val_mini_batch = next(iter(val_loader))
+    else:
+        val_loader = None
+        val_mini_batch = None
+        print("No validation config. Skipping validation steps.")
+
+    visualizer.save_model_architecture(model, val_mini_batch["image"].to(device, non_blocking=True) if val_mini_batch else None)
 
     metrics = MetricsManager(phase=Phase.TRAIN)
 
@@ -99,7 +104,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
         )
 
         # VALIDATION
-        if (epoch + 1) % val_interval == 0:
+        if val_loader is not None and (epoch + 1) % val_interval == 0:
             model.eval()
             val_loss = 0
             with torch.no_grad():
@@ -141,7 +146,8 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
         
         if (epoch + 1) % save_interval == 0:
             copyfile(train_sample_path, train_sample_path.replace("latest", str(epoch+1)))
-            copyfile(val_sample_path, val_sample_path.replace("latest", str(epoch+1)))
+            if (epoch + 1) % val_interval == 0:
+                copyfile(val_sample_path, val_sample_path.replace("latest", str(epoch+1)))
         if save_best:
             copyfile(train_sample_path, train_sample_path.replace("latest", "best"))
             copyfile(val_sample_path, val_sample_path.replace("latest", "best"))
