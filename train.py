@@ -79,7 +79,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             with torch.cuda.amp.autocast():
                 model.compute_metric(outputs, metrics)
             for loss_name, loss in losses.items():
-                if loss_name in epoch_metrics["loss"]:
+                if f"train_{loss_name}" in epoch_metrics["loss"]:
                     epoch_metrics["loss"][f"train_{loss_name}"] += loss
                 else:
                     epoch_metrics["loss"][f"train_{loss_name}"] = loss
@@ -116,7 +116,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                         model.compute_metric(outputs, metrics)
 
                     for loss_name, loss in losses.items():
-                        if loss_name in epoch_metrics["loss"]:
+                        if f"val_{loss_name}" in epoch_metrics["loss"]:
                             epoch_metrics["loss"][f"val_{loss_name}"] += loss.item()
                         else:
                             epoch_metrics["loss"][f"val_{loss_name}"] = loss.item()

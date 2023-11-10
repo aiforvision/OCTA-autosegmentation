@@ -211,7 +211,7 @@ def get_loss_function_by_name(name: str, config: dict[str, dict], scaler: GradSc
         "DiceBCELoss": lambda: DiceBCELoss(True),
         "CrossEntropyLoss": lambda: torch.nn.CrossEntropyLoss(weight=weight),
         "CosineEmbeddingLoss": lambda: WeightedCosineLoss(weights=weight),
-        "MSELoss": lambda: torch.nn.MSELoss(),
+        "MSELoss": lambda: torch.nn.MSELoss().to(device=config["General"].get("device") or "cpu", non_blocking=True),
         "WeightedMSELoss": lambda: WeightedMSELoss(weights=weight),
         "QWKLoss": lambda: QWKLoss(),
         "LSGANLoss": lambda: LSGANLoss().to(device=config["General"].get("device") or "cpu", non_blocking=True),
