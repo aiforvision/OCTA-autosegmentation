@@ -215,4 +215,8 @@ def get_loss_function_by_name(name: str, config: dict[str, dict], scaler: GradSc
         "QWKLoss": lambda: QWKLoss(),
         "LSGANLoss": lambda: LSGANLoss().to(device=config["General"].get("device") or "cpu", non_blocking=True),
     }
-    return loss_map[name]()
+    if name in loss_map:
+        return loss_map[name]()
+    else:
+        print("Warning: No loss function defined. Ignore this message for parameterless models.")
+        return lambda *args, **kwargs: None

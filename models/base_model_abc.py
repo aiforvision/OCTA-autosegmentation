@@ -27,7 +27,8 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
         The function returns the epoch of the loaded checkpoint, else None.
         """
         if not any([isinstance(getattr(self, net_name), nn.Module) for net_names in self.optimizer_mapping.values() for net_name in net_names]):
-            pass
+            print(f"Skipping initialization for {list(self.optimizer_mapping.values())}")
+            return
         model_path: str = os.path.join(config["Output"]["save_dir"], "checkpoints", f"{args.epoch}_model.pth")
         if phase == "train":
             # Initialize Optimizers
