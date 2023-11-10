@@ -11,8 +11,7 @@ import json
 import yaml
 import math
 from PIL import Image
-from utils.metrics import Task
-from utils.enums import Phase
+from utils.enums import Phase, Task
 
 class Visualizer():
     """

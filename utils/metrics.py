@@ -6,11 +6,6 @@ from monai.metrics import MeanIoU, compute_roc_auc
 from utils.cldice import clDice
 from utils.enums import Phase
 
-
-class Task:
-    VESSEL_SEGMENTATION = "ves-seg"
-    GAN_VESSEL_SEGMENTATION = "gan-ves-seg"
-
 class Metric(ABC):
     def __init__(self) -> None:
         self.reset()
