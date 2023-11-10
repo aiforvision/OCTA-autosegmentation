@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
 import torch
-from typing import Any, Tuple, Callable, TypedDict, Literal, NotRequired
+from typing import Any, Tuple, Callable, TypedDict, NotRequired
 from utils.metrics import MetricsManager
 from utils.visualizer import Visualizer
 from torch.cuda.amp.grad_scaler import GradScaler
+from utils.enums import Phase
 
 class Output(TypedDict):
     prediction: list
@@ -16,7 +17,7 @@ class ModelInterface(ABC):
     """
 
     @abstractmethod
-    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler: GradScaler, phase="train") -> None:
+    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler: GradScaler, phase: Phase=Phase.TRAIN) -> None:
         raise NotImplementedError
     
     @abstractmethod
@@ -59,7 +60,7 @@ class ModelInterface(ABC):
                 mini_batch: dict[str, Any],
                 post_transformations: dict[str, Callable],
                 device: torch.device = "cpu",
-                phase: Literal["train", "val", "test"] = "test"
+                phase: Phase = Phase.TEST
         ) -> Tuple[Output, dict[str, torch.Tensor]]:
         """
         Computes a full forward pass given a mini_batch.

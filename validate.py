@@ -10,6 +10,7 @@ from models.networks import init_weights
 
 from data.image_dataset import get_dataset, get_post_transformation
 from utils.metrics import MetricsManager, Task
+from utils.enums import Phase
 
 # Parse input arguments
 parser = argparse.ArgumentParser(description='')
@@ -26,28 +27,28 @@ with open(path, "r") as stream:
     else:
         config = yaml.safe_load(stream)
 
-config["Validation"]["batch_size"]=1
+config[Phase.VALIDATION]["batch_size"]=1
 
 task: Task = config["General"]["task"]
 
-val_loader = get_dataset(config, 'validation')
-post_transformations_val = get_post_transformation(config, phase="validation")
+val_loader = get_dataset(config, Phase.VALIDATION)
+post_transformations_val = get_post_transformation(config, phase=Phase.VALIDATION)
 
 device = torch.device(config["General"].get("device") or "cpu")
 
 scaler = torch.cuda.amp.GradScaler(enabled=False)
 
-model = define_model(config, phase="val")
-model.initialize_model_and_optimizer(init_weights, config, args, scaler, phase="val")
+model = define_model(config, phase=Phase.VALIDATION)
+model.initialize_model_and_optimizer(init_weights, config, args, scaler, phase=Phase.VALIDATION)
 
-metrics = MetricsManager("val")
+metrics = MetricsManager(Phase.VALIDATION)
 predictions = []
 
 model.eval()
 with torch.no_grad():
-    for val_mini_batch in tqdm(val_loader, desc='Validation'):
-        outputs, losses = model.inference(val_mini_batch, post_transformations_val, device=device, phase="val")
+    for val_mini_batch in tqdm(val_loader, desc=Phase.VALIDATION.value):
+        outputs, losses = model.inference(val_mini_batch, post_transformations_val, device=device, phase=Phase.VALIDATION)
         model.compute_metric(outputs, metrics)
             
-    metrics = {k: float(str(round(v, 3))) for k,v in metrics.aggregate_and_reset("val").items()}
+    metrics = {k: float(str(round(v, 3))) for k,v in metrics.aggregate_and_reset(Phase.VALIDATION).items()}
     print(f'Metrics: {metrics}')

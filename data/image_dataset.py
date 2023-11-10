@@ -13,20 +13,21 @@ from math import ceil
 
 from utils.metrics import Task
 from data.unalignedZipDataset import UnalignedZipDataset
+from utils.enums import Phase
 set_track_meta(False)
 
 def _get_transformation(config, phase: str, dtype=torch.float32) -> Compose:
     """
     Create and return the data transformations for 2D segmentation images the given phase.
     """
-    aug_config = config[phase.capitalize()]["data_augmentation"]
+    aug_config = config[phase]["data_augmentation"]
     return Compose(get_data_augmentations(aug_config, dtype))
 
 def get_post_transformation(config: dict, phase: str) -> dict[str, Compose]:
     """
     Create and return the data transformation that is applied to the label and the model prediction before inference.
     """
-    aug_config: dict = config[phase.capitalize()]["post_processing"]
+    aug_config: dict = config[phase]["post_processing"]
     post_transformations = dict()
     for k,v in aug_config.items():
         try:
@@ -42,9 +43,9 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoa
     Creates and return the dataloader for the given phase.
     """
     task = config["General"]["task"]
-    transform = _get_transformation(config, phase, dtype=torch.float16 if phase=="train" and bool(config["General"].get("amp")) else torch.float32)
+    transform = _get_transformation(config, phase, dtype=torch.float16 if phase==Phase.TRAIN and bool(config["General"].get("amp")) else torch.float32)
 
-    data_settings: dict = config[phase.capitalize()]["data"]
+    data_settings: dict = config[phase]["data"]
     data = dict()
     for key, val in data_settings.items():
         paths = natsorted(glob(val["files"], recursive=True))
@@ -66,18 +67,18 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoa
             data[k] = np.resize(np.array(v), max_length).tolist()
         train_files = [dict(zip(data, t)) for t in zip(*data.values())]
     elif task == Task.GAN_VESSEL_SEGMENTATION:
-        if phase == "validation":
+        if phase == Phase.VALIDATION:
             max_length = max([len(l) for l in data.values()])
             for k,v in data.items():
                 data[k] = np.resize(np.array(v), max_length).tolist()
             train_files = [dict(zip(data, t)) for t in zip(*data.values())]
         else:
             data_set = UnalignedZipDataset(data, transform, phase, config["General"]["inference"])
-            loader = DataLoader(data_set, batch_size=batch_size or config[phase.capitalize()].get("batch_size") or 1, shuffle=phase!="test", num_workers=8, pin_memory=torch.cuda.is_available())
+            loader = DataLoader(data_set, batch_size=batch_size or config[phase].get("batch_size") or 1, shuffle=phase!=Phase.TEST, num_workers=8, pin_memory=torch.cuda.is_available())
             return loader
 
 
 
     data_set = Dataset(train_files, transform=transform)
-    loader = DataLoader(data_set, batch_size=batch_size or config[phase.capitalize()].get("batch_size") or 1, shuffle=phase!="test", num_workers=ceil(cpu_count()/2), pin_memory=torch.cuda.is_available())
+    loader = DataLoader(data_set, batch_size=batch_size or config[phase].get("batch_size") or 1, shuffle=phase!=Phase.TEST, num_workers=ceil(cpu_count()/2), pin_memory=torch.cuda.is_available())
     return loader

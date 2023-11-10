@@ -4,6 +4,7 @@ from torch.cuda.amp.grad_scaler import GradScaler
 from typing import Union
 from random import randint, uniform, choice
 from torchvision.transforms.functional import rotate, InterpolationMode
+from utils.enums import Phase
 
 from models.noise_model import NoiseModel
 
@@ -206,7 +207,7 @@ def get_loss_function_by_name(name: str, config: dict[str, dict], scaler: GradSc
         weight = None
     loss_map = {
         # "AtLoss": AtLoss(scaler, loss, None, 200/255, 1, alpha=1.25 * (100/255), grad_align_cos_lambda=0),
-        "AtLoss": lambda: ANTLoss(scaler, loss, **(config["Train"].get("AT") or {})),
+        "AtLoss": lambda: ANTLoss(scaler, loss, **(config[Phase.TRAIN].get("AT") or {})),
         "DiceBCELoss": lambda: DiceBCELoss(True),
         "CrossEntropyLoss": lambda: torch.nn.CrossEntropyLoss(weight=weight),
         "CosineEmbeddingLoss": lambda: WeightedCosineLoss(weights=weight),

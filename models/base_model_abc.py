@@ -1,13 +1,14 @@
 import os
 import torch
 from torch import nn
-from typing import Any, Callable, Tuple, Literal
+from typing import Any, Callable, Tuple
 import itertools
 from models.model_interface_abc import ModelInterface, Output
 from utils.decorators import overrides
 from abc import ABC, abstractmethod
 from torch.cuda.amp.grad_scaler import GradScaler
 from utils.metrics import MetricsManager
+from utils.enums import Phase
 
 class BaseModelABC(nn.Module, ModelInterface, ABC):
     """
@@ -20,7 +21,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
         self.optimizer_mapping: dict[str, list[str]] = optimizer_mapping or { "optimizer": [] }
 
     @overrides(ModelInterface)
-    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler: GradScaler, phase="train"):
+    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler: GradScaler, phase=Phase.TRAIN):
         """
         Initializes the model weights.
         If a pretrained model is used, the respective checkpoint will be loaded and all weights assigned (including the optimizer weights).
@@ -30,23 +31,23 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
             print(f"Skipping initialization for {list(self.optimizer_mapping.values())}")
             return
         model_path: str = os.path.join(config["Output"]["save_dir"], "checkpoints", f"{args.epoch}_model.pth")
-        if phase == "train":
+        if phase == Phase.TRAIN:
             # Initialize Optimizers
             for optim_name, net_names in self.optimizer_mapping.items():
                 parameters = [self.parameters()] if len(net_names) == 0 else [getattr(self, net_name).parameters() for net_name in net_names]
                 setattr(self,optim_name, torch.optim.Adam(itertools.chain(*parameters),
-                    lr=config["Train"]["lr"],
+                    lr=config[Phase.TRAIN]["lr"],
                     betas=(0.5, 0.999),
-                    weight_decay=config["Train"].get("weight_decay", 0)
+                    weight_decay=config[Phase.TRAIN].get("weight_decay", 0)
                 ))
 
             # Initialize LR scheduler TODO
-            max_epochs = config["Train"]["epochs"]
+            max_epochs = config[Phase.TRAIN]["epochs"]
             def schedule(step: int):
-                if step < (max_epochs - config["Train"]["epochs_decay"]):
+                if step < (max_epochs - config[Phase.TRAIN]["epochs_decay"]):
                     return 1
                 else:
-                    return (max_epochs-step) * (1/max(1,config["Train"]["epochs_decay"]))
+                    return (max_epochs-step) * (1/max(1,config[Phase.TRAIN]["epochs_decay"]))
             self.lr_schedulers: list[torch.optim.lr_scheduler.LRScheduler] = []
             for optimizer_name in self.optimizer_mapping.keys():
                 self.lr_schedulers.append(torch.optim.lr_scheduler.LambdaLR(getattr(self, optim_name), schedule))
@@ -98,7 +99,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
                 mini_batch: dict[str, Any],
                 post_transformations: dict[str, Callable],
                 device: torch.device = "cpu",
-                phase: Literal["train", "val", "test"] = "test"
+                phase: Phase = Phase.TEST
         ) -> Tuple[Output, dict[str, torch.Tensor]]:
         """
         Computes a full forward pass given a mini_batch.
@@ -141,7 +142,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
         ) -> Tuple[Output, dict[str, float]]:
         self.optimizer: torch.optim.Optimizer
         with torch.cuda.amp.autocast():
-            outputs, losses = self.inference(mini_batch, post_transformations, device, phase="train")
+            outputs, losses = self.inference(mini_batch, post_transformations, device, phase=Phase.TRAIN)
             loss = sum(list(losses.values()))
         scaler.scale(loss).backward()
         scaler.step(self.optimizer)

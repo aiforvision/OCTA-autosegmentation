@@ -3,10 +3,11 @@ from torch import nn
 from models.base_model_abc import BaseModelABC
 from models.model_interface_abc import Output
 from monai.data import decollate_batch
-from typing import Any, Callable, Tuple, Literal
+from typing import Any, Callable, Tuple
 from utils.losses import get_loss_function_by_name
 from utils.decorators import overrides
 from utils.visualizer import Visualizer
+from utils.enums import Phase
 
 class GanSegModel(BaseModelABC):
 
@@ -17,7 +18,7 @@ class GanSegModel(BaseModelABC):
         model_s: dict,
         compute_identity=True,
         compute_identity_seg=True,
-        phase="train",
+        phase: Phase=Phase.TRAIN,
         inference: str=None,
         **kwargs):
         super().__init__(optimizer_mapping={
@@ -31,20 +32,20 @@ class GanSegModel(BaseModelABC):
         self.optimizer_G: torch.optim.Optimizer
         self.optimizer_D: torch.optim.Optimizer
         self.optimizer_S: torch.optim.Optimizer
-        if phase == "train" or inference == "S":
+        if phase == Phase.TRAIN or inference == "S":
             self.segmentor = MODEL_DICT[model_s.pop("name")](**model_s)
-        if phase == "train" or inference == "G":
+        if phase == Phase.TRAIN or inference == "G":
             self.generator = MODEL_DICT[model_g.pop("name")](**model_g)
-        if phase == "train":
+        if phase == Phase.TRAIN:
             self.discriminator = MODEL_DICT[model_d.pop("name")](**model_d)
         self.compute_identity = compute_identity
         self.compute_identity_seg = compute_identity_seg
         self.criterionIdt = torch.nn.L1Loss()
 
     @overrides(BaseModelABC)
-    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler, phase="train"):
-        self.loss_name_dg = config["Train"]["loss_dg"]
-        self.loss_name_s = config["Train"]["loss_s"]
+    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
+        self.loss_name_dg = config[Phase.TRAIN]["loss_dg"]
+        self.loss_name_s = config[Phase.TRAIN]["loss_s"]
         self.dg_loss = get_loss_function_by_name(self.loss_name_dg, config)
         self.s_loss = get_loss_function_by_name(self.loss_name_s, config)
         super().initialize_model_and_optimizer(init_weights,config,args,scaler,phase)
@@ -59,14 +60,14 @@ class GanSegModel(BaseModelABC):
     def inference(self, mini_batch: dict[str, Any],
                 post_transformations: dict[str, Callable],
                 device: torch.device = "cpu",
-                phase: Literal["train", "val", "test"] = "test"
+                phase: Phase = Phase.TEST
         ) -> Tuple[Output, dict[str, torch.Tensor]]:
-        assert phase=="val" or phase=="test", "This forward function only supports val and test. Use perform_step for training"
+        assert phase==Phase.VALIDATION or phase==Phase.TEST, "This forward function only supports val and test. Use perform_step for training"
         input: torch.Tensor = mini_batch["image"].to(device=device, non_blocking=True)
         losses = dict()
         pred = self.forward(input)
         outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1,0:1])]}
-        if self.segmentor is not None and phase == "val":
+        if self.segmentor is not None and phase == Phase.VALIDATION:
             labels: torch.Tensor = mini_batch["label"].to(device=device, non_blocking=True)
             outputs["label"] = [post_transformations["label"](i) for i in decollate_batch(labels[0:1,0:1])]
             losses[self.loss_name_s] = self.s_loss(pred, labels)

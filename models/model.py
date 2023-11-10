@@ -1,10 +1,10 @@
-from typing import Literal
 import torch
 from models.model_interface_abc import ModelInterface
 from models.lambda_model import LambdaModel
 from models.networks import MODEL_DICT
+from utils.enums import Phase
 
-def define_model(config: dict[str, dict], phase: Literal["train", "val", "test"]):
+def define_model(config: dict[str, dict], phase: Phase):
     device = torch.device(config["General"].get("device") or "cpu")
     model_params: dict = config["General"]["model"]
     model_name = model_params.pop("name")

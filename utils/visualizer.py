@@ -12,6 +12,7 @@ import yaml
 import math
 from PIL import Image
 from utils.metrics import Task
+from utils.enums import Phase
 
 class Visualizer():
     """
@@ -69,9 +70,9 @@ class Visualizer():
                 self.tb = SummaryWriter(log_dir=self.save_dir)
         
         config["Output"]["save_dir"] = self.save_dir
-        config["Test"]["save_dir"] = os.path.join(self.save_dir, 'test')
-        # config["Validation"]["save_dir"] = os.path.join(self.save_dir, 'val')
-        config["Test"]["model_path"] = os.path.join(self.save_dir, 'best_model.pth')
+        config[Phase.TEST]["save_dir"] = os.path.join(self.save_dir, Phase.TEST.value)
+        # config[Phase.VALIDATION]["save_dir"] = os.path.join(self.save_dir, Phase.VALIDATION)
+        config[Phase.TEST]["model_path"] = os.path.join(self.save_dir, 'best_model.pth')
         with open(os.path.join(self.save_dir, 'config.yml'), 'w') as f:
             yaml.dump(config, f)
             # json.dump(config, f, ensure_ascii=False, indent=4)

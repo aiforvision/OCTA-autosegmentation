@@ -22,6 +22,7 @@ from ray.tune import CLIReporter
 import ConfigSpace as CS
 from ray.tune.search.bohb import TuneBOHB
 import copy
+from utils.enums import Phase
 
 
 # Parse input arguments
@@ -43,37 +44,37 @@ with open(path, "r") as stream:
         CONFIG = yaml.safe_load(stream)
 
 def training_function(config: dict):
-    config["Validation"]["batch_size"]=1
-    config["Train"]["data_augmentation"][5]["max_decrease_res"] = config["max_decrease_res"]
-    config["Train"]["data_augmentation"][5]["lambda_speckle"] = config["lambda_speckle"]
-    # config["Train"]["data_augmentation"][5]["lambda_gamma"] = config["lambda_gamma"]
-    config["Train"]["data_augmentation"][5]["lambda_delta"] = config["lambda_delta"]
+    config[Phase.VALIDATION]["batch_size"]=1
+    config[Phase.TRAIN]["data_augmentation"][5]["max_decrease_res"] = config["max_decrease_res"]
+    config[Phase.TRAIN]["data_augmentation"][5]["lambda_speckle"] = config["lambda_speckle"]
+    # config[Phase.TRAIN]["data_augmentation"][5]["lambda_gamma"] = config["lambda_gamma"]
+    config[Phase.TRAIN]["data_augmentation"][5]["lambda_delta"] = config["lambda_delta"]
 
 
-    max_epochs = config["Train"]["epochs"]
+    max_epochs = config[Phase.TRAIN]["epochs"]
     VAL_AMP = bool(config["General"].get("amp"))
     # use amp to accelerate training
     scaler = torch.cuda.amp.GradScaler(enabled=VAL_AMP)
     device = torch.device(config["General"].get("device") or "cpu")
     task: Task = config["General"]["task"]
 
-    train_loader = get_dataset(config, 'train')
-    val_loader = get_dataset(config, 'validation')
+    train_loader = get_dataset(config, Phase.TRAIN)
+    val_loader = get_dataset(config, Phase.VALIDATION)
 
-    post_pred, post_label = get_post_transformation(config, "train")
-    post_pred_val, post_label_val = get_post_transformation(config, "validation")
+    post_pred, post_label = get_post_transformation(config, Phase.TRAIN)
+    post_pred_val, post_label_val = get_post_transformation(config, Phase.VALIDATION)
 
-    model = define_model(copy.deepcopy(config), "train")
+    model = define_model(copy.deepcopy(config), Phase.TRAIN)
 
     optimizer = initialize_model_and_optimizer(model, config, args)
 
-    loss_name = config["Train"]["loss"]
+    loss_name = config[Phase.TRAIN]["loss"]
     loss_function = get_loss_function_by_name(loss_name, config)
     def schedule(step: int):
-        if step < max_epochs - config["Train"]["epochs_decay"]:
+        if step < max_epochs - config[Phase.TRAIN]["epochs_decay"]:
             return 1
         else:
-            return (max_epochs-step) * (1/max(1,config["Train"]["epochs_decay"]))
+            return (max_epochs-step) * (1/max(1,config[Phase.TRAIN]["epochs_decay"]))
     lr_scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, schedule)
     metrics = MetricsManager()
 
@@ -117,7 +118,7 @@ def training_function(config: dict):
                     val_outputs = [post_pred_val(i) for i in decollate_batch(val_outputs)]
                     metrics(y_pred=val_outputs, y=val_labels)
 
-    session.report(metrics.aggregate_and_reset("val")) 
+    session.report(metrics.aggregate_and_reset(Phase.VALIDATION)) 
 
 
 METRIC = 'val_DSC'

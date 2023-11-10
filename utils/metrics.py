@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from monai.metrics import MeanIoU, compute_roc_auc
 from utils.cldice import clDice
-from typing import Literal
+from utils.enums import Phase
 
 
 class Task:
@@ -168,8 +168,8 @@ class AUCMetric(Metric):
             self.scores.append(compute_roc_auc(y_pred_i.detach().cpu().flatten(), y_i.detach().cpu().flatten()))
 
 class MetricsManager():
-    def __init__(self, phase: Literal["train", "val", "test"]="train"):
-        if phase=="train":
+    def __init__(self, phase: Phase=Phase.TRAIN):
+        if phase==Phase.TRAIN:
             self.metrics = {
                 "DSC": MacroDiceMetric(),
                 "IoU": MeanIoU(include_background=True, reduction="mean")

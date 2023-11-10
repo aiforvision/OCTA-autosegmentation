@@ -17,16 +17,18 @@ from data.image_dataset import get_dataset, get_post_transformation
 from utils.metrics import MetricsManager
 from utils.visualizer import Visualizer
 from models.base_model_abc import BaseModelABC
+from utils.enums import Phase
 
 def train(args: argparse.Namespace, config: dict[str,dict]):
-    for phase in ["Train", "Validation", "Test"]:
+    for phase in Phase:
         for k in config[phase]["data"].keys():
             if not config[phase]["data"][k].get("split", ".txt").endswith(".txt"):
+                assert bool(args.split), "You have to specify a split!"
                 config[phase]["data"][k]["split"] = config[phase]["data"][k]["split"] + args.split + ".txt"
 
-    max_epochs = config["Train"]["epochs"]
-    val_interval = config["Train"].get("val_interval") or 1
-    save_interval = config["Train"].get("save_interval") or 100
+    max_epochs = config[Phase.TRAIN]["epochs"]
+    val_interval = config[Phase.TRAIN].get("val_interval") or 1
+    save_interval = config[Phase.TRAIN].get("save_interval") or 100
     VAL_AMP = bool(config["General"].get("amp"))
     # use amp to accelerate training
     scaler = torch.cuda.amp.GradScaler(enabled=VAL_AMP)
@@ -34,22 +36,22 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
     visualizer = Visualizer(config, args.start_epoch>0, epoch=args.epoch)
 
 
-    train_loader = get_dataset(config, "train")
-    post_transformations_train = get_post_transformation(config, "train")
+    train_loader = get_dataset(config, Phase.TRAIN)
+    post_transformations_train = get_post_transformation(config, Phase.TRAIN)
 
-    val_loader = get_dataset(config, 'validation')
-    post_transformations_val = get_post_transformation(config, "validation")
+    val_loader = get_dataset(config, Phase.VALIDATION)
+    post_transformations_val = get_post_transformation(config, Phase.VALIDATION)
 
-    model: BaseModelABC = define_model(deepcopy(config), phase = "train")
-    model.initialize_model_and_optimizer(init_weights, config, args, scaler, phase="train")
+    model: BaseModelABC = define_model(deepcopy(config), phase = Phase.TRAIN)
+    model.initialize_model_and_optimizer(init_weights, config, args, scaler, phase=Phase.TRAIN)
 
     mini_batch = next(iter(val_loader))
     visualizer.save_model_architecture(model, mini_batch["image"].to(device, non_blocking=True))
 
-    metrics = MetricsManager(phase="train")
+    metrics = MetricsManager(phase=Phase.TRAIN)
 
     if args.start_epoch>0:
-        best_metric, best_metric_epoch = visualizer.get_max_of_metric("metric", metrics.get_comp_metric('val'))
+        best_metric, best_metric_epoch = visualizer.get_max_of_metric("metric", metrics.get_comp_metric(Phase.VALIDATION))
     else:
         best_metric = -1
         best_metric_epoch = -1
@@ -84,7 +86,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             lr_scheduler.step()
 
         epoch_metrics["loss"] = {k: v/step for k,v in epoch_metrics["loss"].items()}
-        epoch_metrics["metric"] = metrics.aggregate_and_reset(prefix="train")
+        epoch_metrics["metric"] = metrics.aggregate_and_reset(prefix=Phase.TRAIN)
         epoch_loss /= step
 
         epoch_tqdm.set_description(f"avg train loss: {epoch_loss:.4f}")
@@ -102,10 +104,10 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             val_loss = 0
             with torch.no_grad():
                 step = 0
-                for val_mini_batch in tqdm(val_loader, desc='Validation', leave=False):
+                for val_mini_batch in tqdm(val_loader, desc=Phase.VALIDATION.value, leave=False):
                     step += 1
                     with torch.cuda.amp.autocast():
-                        outputs, losses = model.inference(val_mini_batch, post_transformations_val, device=device, phase="val")
+                        outputs, losses = model.inference(val_mini_batch, post_transformations_val, device=device, phase=Phase.VALIDATION)
                         model.compute_metric(outputs, metrics)
 
                     for loss_name, loss in losses.items():
@@ -120,11 +122,11 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                         break
                 
 
-                epoch_metrics["loss"] = {k: v/step if k.startswith("val") else v for k,v in epoch_metrics["loss"].items()}
-                epoch_metrics["metric"].update(metrics.aggregate_and_reset(prefix="val"))
+                epoch_metrics["loss"] = {k: v/step if k.startswith(Phase.VALIDATION.value) else v for k,v in epoch_metrics["loss"].items()}
+                epoch_metrics["metric"].update(metrics.aggregate_and_reset(prefix=Phase.VALIDATION))
                 val_loss /= step
                 epoch_tqdm.set_description(f"avg train loss: {val_loss:.4f}")
-                metric_comp =  epoch_metrics["metric"][metrics.get_comp_metric('val')]
+                metric_comp =  epoch_metrics["metric"][metrics.get_comp_metric(Phase.VALIDATION)]
                 if metric_comp > best_metric:
                     best_metric = metric_comp
                     best_metric_epoch = epoch
