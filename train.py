@@ -36,8 +36,6 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
     device = torch.device(config["General"].get("device") or "cpu")
     visualizer = Visualizer(config, args.start_epoch>0, epoch=args.epoch)
 
-    model: BaseModelABC = define_model(deepcopy(config), phase = Phase.TRAIN)
-    model.initialize_model_and_optimizer(init_weights, config, args, scaler, phase=Phase.TRAIN)
 
     train_loader = get_dataset(config, Phase.TRAIN)
     post_transformations_train = get_post_transformation(config, Phase.TRAIN)
@@ -45,13 +43,18 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
     if Phase.VALIDATION in config:
         val_loader = get_dataset(config, Phase.VALIDATION)
         post_transformations_val = get_post_transformation(config, Phase.VALIDATION)
-        val_mini_batch = next(iter(val_loader))
     else:
         val_loader = None
-        val_mini_batch = None
         print("No validation config. Skipping validation steps.")
+    
+    init_mini_batch = next(iter(train_loader))
+    input_key = [k for k in init_mini_batch.keys() if not k.endswith("_path")][0]
+    init_mini_batch["image"] = init_mini_batch[input_key]
 
-    visualizer.save_model_architecture(model, val_mini_batch["image"].to(device, non_blocking=True) if val_mini_batch else None)
+    model: BaseModelABC = define_model(deepcopy(config), phase = Phase.TRAIN)
+    model.initialize_model_and_optimizer(init_mini_batch, init_weights, config, args, scaler, phase=Phase.TRAIN)
+
+    visualizer.save_model_architecture(model, init_mini_batch["image"].to(device, non_blocking=True) if init_mini_batch else None)
 
     metrics = MetricsManager(phase=Phase.TRAIN)
 

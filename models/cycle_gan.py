@@ -56,7 +56,7 @@ class CycleGAN(BaseModelABC):
             self.fake_B_pool = ImagePool(pool_size)  # create image buffer to store previously generated images
 
     @overrides(BaseModelABC)
-    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
+    def initialize_model_and_optimizer(self, init_mini_batch: dict, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
         self.loss_name_criterionGAN = config[Phase.TRAIN]["loss_criterionGAN"]
         self.criterionGAN = get_loss_function_by_name(self.loss_name_criterionGAN, config)
 
@@ -66,7 +66,7 @@ class CycleGAN(BaseModelABC):
         self.loss_name_criterionIdt= config[Phase.TRAIN]["loss_criterionIdt"]
         self.criterionIdt = get_loss_function_by_name(self.loss_name_criterionIdt, config)
 
-        super().initialize_model_and_optimizer(init_weights,config,args,scaler,phase)
+        super().initialize_model_and_optimizer(init_mini_batch,init_weights,config,args,scaler,phase)
 
     
     @overrides(BaseModelABC)
@@ -109,18 +109,17 @@ class CycleGAN(BaseModelABC):
         - Dictionary containing the predictions and their names
         - Dictionary containing the losses and their names
         """
-        if phase==Phase.VALIDATION or phase==Phase.TEST:
-            input = mini_batch["image"]
-            pred = self.forward(input)
-            losses = dict()
-            outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1,0:1])]}
+        assert phase==Phase.VALIDATION or phase==Phase.TEST, "This inference function only supports val and test. Use perform_step for training"
+        input = mini_batch["image"]
+        pred = self.forward(input)
+        losses = dict()
+        outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1,0:1])]}
 
-            if self.netG_B is not None and phase == Phase.VALIDATION:
-                labels: torch.Tensor = mini_batch["label"].to(device=device, non_blocking=True)
-                outputs["label"] = [post_transformations["label"](i) for i in decollate_batch(labels[0:1,0:1])]
-                losses[self.loss_name_criterionCycle] = self.criterionCycle(pred, labels)
-            return outputs, losses
-        raise NotImplementedError("This inference function only supports val and test. Use perform_step for training")
+        if self.netG_B is not None and phase == Phase.VALIDATION:
+            labels: torch.Tensor = mini_batch["label"].to(device=device, non_blocking=True)
+            outputs["label"] = [post_transformations["label"](i) for i in decollate_batch(labels[0:1,0:1])]
+            losses[self.loss_name_criterionCycle] = self.criterionCycle(pred, labels)
+        return outputs, losses
     
     def _backward_D_basic(self, netD: nn.Module, real: torch.Tensor, fake: torch.Tensor):
         """Calculate GAN loss for the discriminator
@@ -232,7 +231,7 @@ class CycleGAN(BaseModelABC):
             "label": [post_transformations["label"](i) for i in decollate_batch(real_A[0:1, 0:1])],
             "fake_B": fake_B[0:1,0:1].detach(),
             "idt_A": idt_A[0:1,0:1].detach(),
-            "real_B": fake_A[0:1,0:1].detach()
+            "real_B_seg": fake_A[0:1,0:1].detach()
         }
         losses = {
             "G": loss_G.item(),
@@ -266,7 +265,7 @@ class CycleGAN(BaseModelABC):
                 outputs["prediction"][0],
                 mini_batch["real_B"][0],
                 outputs["idt_A"][0],
-                outputs["real_B"][0],
+                outputs["real_B_seg"][0],
                 path_A=mini_batch["real_A_path"][0],
                 path_B=mini_batch["real_B_path"][0],
                 suffix=suffix

@@ -21,11 +21,20 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
         self.optimizer_mapping: dict[str, list[str]] = optimizer_mapping or { "optimizer": [] }
 
     @overrides(ModelInterface)
-    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler: GradScaler, phase=Phase.TRAIN):
+    def initialize_model_and_optimizer(self, init_mini_batch: dict, init_weights: Callable, config: dict, args, scaler: GradScaler, phase=Phase.TRAIN):
         """
         Initializes the model weights.
         If a pretrained model is used, the respective checkpoint will be loaded and all weights assigned (including the optimizer weights).
         The function returns the epoch of the loaded checkpoint, else None.
+
+        Parameters:
+        ----------
+        - init_mini_batch: Mini_batch from the phase the model will primarily be used for
+        - init_weights: Function to initialize the model's weights
+        - config: Config dictionary
+        - args: Runtime arguments
+        - scaler: Gradscaler used for automated mixed precision (amp)
+        - phase: The phase the model will primarily be used for
         """
         if not any([isinstance(getattr(self, net_name), nn.Module) for net_names in self.optimizer_mapping.values() for net_name in net_names]):
             print(f"Skipping initialization for {list(self.optimizer_mapping.values())}")

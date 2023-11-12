@@ -45,10 +45,14 @@ test_loader = get_dataset(config, Phase.TEST)
 post_transformations_test = get_post_transformation(config, Phase.TEST)
 
 device = torch.device(config["General"].get("device") or "cpu")
-
 scaler = torch.cuda.amp.GradScaler(enabled=False)
+
+test_mini_batch = next(iter(test_loader))
+input_key = [k for k in test_mini_batch.keys() if not k.endswith("_path")][0]
+test_mini_batch["image"] = test_mini_batch.pop(input_key)
+
 model = define_model(config, phase=Phase.TEST)
-model.initialize_model_and_optimizer(init_weights, config, args, scaler, phase=Phase.VALIDATION)
+model.initialize_model_and_optimizer(test_mini_batch, init_weights, config, args, scaler, phase=Phase.VALIDATION)
 predictions = []
 
 model.eval()
@@ -58,7 +62,6 @@ with torch.no_grad():
         if config[Phase.TEST].get("num_samples") is not None and num_sample>=config[Phase.TEST]["num_samples"]:
             break
         num_sample+=1
-        input_key = [k for k in test_mini_batch.keys() if not k.endswith("_path")][0]
         test_mini_batch["image"] = test_mini_batch.pop(input_key)
         outputs, _ = model.inference(test_mini_batch, post_transformations_test, device=device, phase=Phase.TEST)
         inference_mode = config["General"].get("inference") or "pred"

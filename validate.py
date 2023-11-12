@@ -39,7 +39,7 @@ device = torch.device(config["General"].get("device") or "cpu")
 scaler = torch.cuda.amp.GradScaler(enabled=False)
 
 model = define_model(config, phase=Phase.VALIDATION)
-model.initialize_model_and_optimizer(init_weights, config, args, scaler, phase=Phase.VALIDATION)
+model.initialize_model_and_optimizer(next(iter(val_loader)), init_weights, config, args, scaler, phase=Phase.VALIDATION)
 
 metrics = MetricsManager(Phase.VALIDATION)
 predictions = []

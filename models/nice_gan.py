@@ -51,14 +51,14 @@ class NiceGAN(BaseModelABC):
             self.disB = MODEL_DICT[disB_config.pop("name")](**disB_config)
 
     @overrides(BaseModelABC)
-    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
+    def initialize_model_and_optimizer(self, init_mini_batch, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
         self.loss_name_ad = config[Phase.TRAIN]["loss_ad"]
         self.ad_loss = get_loss_function_by_name(self.loss_name_ad, config)
 
         self.loss_name_cycle = config[Phase.TRAIN]["loss_cycle"]
         self.cycle_loss = get_loss_function_by_name(self.loss_name_cycle, config)
 
-        super().initialize_model_and_optimizer(init_weights,config,args,scaler,phase)
+        super().initialize_model_and_optimizer(init_mini_batch,init_weights,config,args,scaler,phase)
 
     
     @overrides(BaseModelABC)

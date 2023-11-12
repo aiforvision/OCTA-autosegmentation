@@ -17,12 +17,12 @@ class LambdaModel(BaseModelABC):
         self.model = MODEL_DICT[model_name](**kwargs)
 
     overrides(BaseModelABC)
-    def initialize_model_and_optimizer(self, init_weights: Callable, config: dict[str, dict], args, scaler: GradScaler, phase:Phase=Phase.TRAIN) -> None:
+    def initialize_model_and_optimizer(self, init_mini_batch: dict, init_weights: Callable, config: dict[str, dict], args, scaler: GradScaler, phase:Phase=Phase.TRAIN) -> None:
         self.loss_name = config.get(Phase.TRAIN, dict()).get("loss", "")
         self.loss_function = get_loss_function_by_name(self.loss_name, config)
         if phase==Phase.TRAIN and config[Phase.TRAIN].get("AT", False):
             self.at = get_loss_function_by_name("AtLoss", config, scaler, self.loss_function)
-        super().initialize_model_and_optimizer(init_weights, config, args, scaler, phase)
+        super().initialize_model_and_optimizer(init_mini_batch,init_weights, config, args, scaler, phase)
 
     overrides(BaseModelABC)
     def inference(self,
