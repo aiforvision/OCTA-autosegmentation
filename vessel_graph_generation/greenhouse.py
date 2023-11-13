@@ -256,10 +256,9 @@ class Greenhouse():
                     new_nodes.append(node.tree.add_node(p_k, self.r, node, self.kappa))
             elif node.is_inter_node:
                 # Calculate optimal radius and angle with Murray
-                r_p = node.get_proximal_radius()
                 r_1 = node.get_distal_radius()
+                r_2 = self.r # np.random.default_rng().normal((0.3/node.proximal_num_segments + 0.8)*self.r, self.r / 25)
 
-                r_2 = self.r#np.random.default_rng().normal((0.3/node.proximal_num_segments + 0.8)*self.r, self.r / 25)
                 r_p = (r_1**self.kappa + r_2**self.kappa)**(1/self.kappa)
                 phi_1 = np.degrees(np.arccos((r_p ** 4 + r_1 ** 4 - r_2 ** 4) / (2 * r_p ** 2 * r_1 ** 2)))
                 phi_2 = np.degrees(np.arccos((r_p ** 4 + r_2 ** 4 - r_1 ** 4) / (2 * r_p ** 2 * r_2 ** 2)))
