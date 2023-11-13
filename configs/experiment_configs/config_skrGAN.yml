@@ -1,0 +1,164 @@
+---
+# Configuration for frangi-filter based vessel segmentation
+General:
+  amp: false
+  device: cpu
+  task: ves-seg
+  model:
+    name: skrgan
+    sigma: 2
+    area_threshold_open: 64
+    connectivity_open: 1
+    area_threshold_close: 64
+    connectivity_close: 1
+Validation:
+  batch_size: 1
+  data:
+    image:
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
+      # files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
+    label:
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/segmentations/*.png
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/segmentations/**/*.png
+      # files: /ABSOLUTE/PATH/TO/Giarratano/segmented_images/**/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - image
+      - label
+      image_only: true
+    - name: ScaleIntensityd
+      keys:
+      - image
+      - label
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+      - image
+      - label
+      strict_check: false
+      channel_dim: no_channel
+    - name: Resized
+      keys:
+      - label
+      spatial_size:
+        # Giarratano
+        # - 360
+        # - 360
+        # OCTA-500 and ROSE-1
+        - 1216
+        - 1216
+      mode: bilinear
+    - name: Rotate90d
+      keys:
+      - image
+      - label
+      k: 1
+    - name: Flipd
+      keys:
+      - image
+      - label
+      spatial_axis: 0
+    - name: AsDiscreted
+      keys:
+      - label
+      threshold: 0.5
+    - name: CastToTyped
+      keys:
+      - image
+      - label
+      dtype: dtype
+  post_processing:
+    prediction:
+    - name: AsDiscrete
+      threshold: 0.5 # OCTA-500
+    - name: RemoveSmallObjects
+      # min_size: 5 # Giarratano
+      # min_size: 38 # ROSE-1
+      min_size: 31 # OCTA-500
+    - name: Resize
+      spatial_size:
+        - 1216
+        - 1216
+      mode: bilinear
+    - name: AsDiscrete
+      threshold: 0.5
+    label: null
+Test:
+  batch_size: 1
+  data:
+    image:
+      files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png
+      split: /ABSOLUTE/PATH/TO/Giarratano/test_0.txt
+
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/test_0.txt
+
+      # files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
+      # split: /ABSOLUTE/PATH/TO/OCTA/test_0.txt
+  save_comparisons: false
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+        - image
+      image_only: true
+    - name: ScaleIntensityd
+      keys:
+        - image
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+        - image
+      strict_check: false
+      channel_dim: no_channel
+    - name: Rotate90d
+      keys:
+        - image
+      k: 1
+    - name: Flipd
+      keys:
+        - image
+      spatial_axis: 0
+    - name: CastToTyped
+      keys:
+        - image
+      dtype: dtype
+  post_processing:
+    prediction:
+    - name: AsDiscrete
+      threshold: 0.04 # Giarratano
+      # threshold: 0.42 # ROSE
+      # threshold: 0.76 # OCTA-500
+    - name: RemoveSmallObjects
+      min_size: 5 # Giarratano
+      # min_size: 32 # ROSE-1
+      # min_size: 38 # OCTA-500
+    - name: Resize
+      spatial_size:
+        # For Giarratano
+        - 360
+        - 360
+        # For OCTA-500 and ROSE-1
+        # - 1216
+        # - 1216
+      mode: bilinear
+    - name: AsDiscrete
+      threshold: 0.5
+    label: null
+  save_dir: ./results/skrgan/test
+Output:
+  save_dir: ./results/skrgan
+  save_to_disk: true
+  save_to_tensorboard: false
+  save_interval: 1
+    
+

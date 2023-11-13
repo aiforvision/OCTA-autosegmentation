@@ -1,0 +1,245 @@
+---
+General:
+  amp: true
+  device: cuda:0
+  task: ves-seg
+  model:
+    name: DynUNet
+    spatial_dims: 2
+    in_channels: 1
+    out_channels: 1
+    kernel_size: [3,3,3,3,3]
+    strides: [1,2,2,2,1]
+    upsample_kernel_size: [1,2,2,2,1]
+Train:
+  data:
+    image:
+      files: /home/linus/Datasets/OCTA/OCTA_synth/Synthetic_OCTA_Schneider/img/*.png
+    label:
+      files: /home/linus/Datasets/OCTA/OCTA_synth/Synthetic_OCTA_Schneider/gt/*.png
+  epochs: 30
+  epochs_decay: 10
+  val_interval: 1
+  save_interval: 10
+  batch_size: 4
+  lr: 0.0001
+  loss: DiceBCELoss
+  AT: false
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - image
+      - label
+      image_only: true
+    - name: ScaleIntensityd
+      keys:
+      - image
+      - label
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+      - image
+      - label
+      strict_check: false
+      channel_dim: no_channel
+    - name: Resized
+      keys:
+      - image
+      - label
+      spatial_size:
+        - 1216
+        - 1216
+      mode: bilinear
+    - name: RandFlipd
+      keys:
+      - image
+      - label
+      prob: 0.5
+      spatial_axis:
+      - 0
+      - 1
+    - name: RandRotate90d
+      keys:
+      - image
+      - label
+      prob: 0.75
+    - name: RandRotated
+      keys:
+      - image
+      - label
+      prob: 1
+      range_x: 0.17453292519943295
+      padding_mode: zeros
+      # For Giarratano: Crop to 360x360
+    # - name: RandCropOrPadd
+    #   keys:
+    #     - image
+    #     - label
+    #   prob: 1
+    #   min_factor: 0.2965
+    #   max_factor: 0.2965
+    - name: AsDiscreted
+      keys:
+      - label
+      threshold: 0.5
+    - name: CastToTyped
+      keys:
+      - image
+      - label
+      dtype: dtype
+  post_processing:
+    prediction:
+    - name: Activations
+      sigmoid: true
+    - name: AsDiscrete
+      threshold: 0.5
+    - name: RemoveSmallObjects
+      min_size: 160
+    label:
+    - name: CastToType
+      dtype: uint8
+Validation:
+  batch_size: 4
+  data:
+    image:
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
+      # files: /home/linus/Datasets/OCTA/ROSE-1/images/*.png
+      # files: /home/linus/Datasets/OCTA/Giarratano/original_images/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
+      # split: /home/linus/Datasets/OCTA/ROSE-1/val_
+      # split: /home/linus/Datasets/OCTA/Giarratano/val_
+    label:
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/segmentations/*.png
+      # files: /home/linus/Datasets/OCTA/ROSE-1/segmentations/*.png
+      # files: /home/linus/Datasets/OCTA/Giarratano/segmented_images/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
+      # split: /home/linus/Datasets/OCTA/ROSE-1/val_
+      # split: /home/linus/Datasets/OCTA/Giarratano/val_
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - image
+      - label
+      image_only: true
+    - name: ScaleIntensityd
+      keys:
+      - image
+      - label
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+      - image
+      - label
+      strict_check: false
+      channel_dim: no_channel
+    - name: Resized
+      keys:
+      - image
+      - label
+      spatial_size:
+        # Giarratano
+        # - 360
+        # - 360
+        # OCTA-500 and ROSE-1
+        - 1216
+        - 1216
+      mode: bilinear
+    - name: Rotate90d
+      keys:
+      - image
+      - label
+      k: 1
+    - name: Flipd
+      keys:
+      - image
+      - label
+      spatial_axis: 0
+    - name: AsDiscreted
+      keys:
+      - label
+      threshold: 0.1
+    - name: CastToTyped
+      keys:
+      - image
+      - label
+      dtype: dtype
+  post_processing:
+    prediction:
+    - name: Activations
+      sigmoid: true
+    - name: AsDiscrete
+      threshold: 0.5
+    - name: RemoveSmallObjects
+      min_size: 160
+    label:
+    - name: CastToType
+      dtype: uint8
+Test:
+  batch_size: 1
+  data:
+    image:
+      files: /home/lkreitner/OCTA-seg/datasets/OCTA-500/images/**/*.png
+      spilt: /home/lkreitner/OCTA-seg/datasets/OCTA-500/test_0.txt
+      # files: /home/lkreitner/OCTA-seg/datasets/ROSE-1/images/**/*.png
+      # spilt: /home/lkreitner/OCTA-seg/datasets/ROSE-1/test_0.txt
+      # files: /home/linus/Datasets/OCTA/Giarratano/original_images/*.png
+      # split: /home/linus/Datasets/OCTA/Giarratano/test_0.txt
+  save_comparisons: false
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - image
+      image_only: true
+    - name: ToGrayScaled
+      keys:
+      - image
+    - name: ScaleIntensityd
+      keys:
+      - image
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+      - image
+      strict_check: false
+      channel_dim: no_channel
+    - name: Resized
+      keys:
+      - image
+      spatial_size:
+        # Giarratano
+        # - 360
+        # - 360
+        # OCTA-500 and ROSE-1
+        - 1216
+        - 1216
+      mode: bilinear
+    - name: Rotate90d
+      keys:
+      - image
+      k: 1
+    - name: Flipd
+      keys:
+      - image
+      spatial_axis: 0
+    - name: CastToTyped
+      keys:
+      - image
+      dtype: dtype
+  post_processing:
+    prediction:
+    - name: Activations
+      sigmoid: true
+    - name: AsDiscrete
+      threshold: 0.5
+    - name: RemoveSmallObjects
+      min_size: 160
+    label:
+    - name: CastToType
+      dtype: uint8
+Output:
+  save_dir: ./results/ves-seg-S_Menten_OCTA-500
+  save_to_disk: true
+  save_to_tensorboard: true

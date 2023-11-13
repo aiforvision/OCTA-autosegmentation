@@ -1,0 +1,191 @@
+---
+General:
+  amp: true
+  device: cuda:0
+  task: gan-ves-seg
+  inference: netG
+  model:
+    name: CUTModel
+    netG_config:
+      name: resnetGenerator9
+    netD_config: 
+      name: patchGAN70x70
+    netF_config:
+      name: PatchSamplerF
+      use_mlp: True
+      nc: 256
+    nce_layers: '0,4,8,12,16'
+    # For Nomal CUT:
+    nce_idt: True
+    lambda_NCE: 1
+    flip_equivariance: False
+    # For Fast NEGCUT:
+    # nce_idt: False
+    # lambda_NCE: 10
+    # flip_equivariance: False
+    lambda_GAN: 1
+    num_patches: 256
+Train:
+  data:
+    real_B:
+      # files: /home/linus/Datasets/OCTA/processed/OCTA_TUMNeuro_initial_3_qc_combined/*.png
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/train_0.txt
+      # files: /home/linus/repos/OCTA-seg/datasets/OCTA_TUMNeuro_prototyping/*.png
+      # files: /home/shared/Data/Munich_macular_holes/*.png
+      # files: /home/shared/Data/WEH_OCTA/*.png
+    real_A:
+      files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/*.csv
+    background:
+      files: /home/linus/repos/OCTA-seg/datasets/background_images/*.png
+  epochs: 50
+  epochs_decay: 0
+  save_interval: 25
+  val_interval: 100
+  batch_size: 4
+  lr: 0.0002
+  loss_criterionGAN: LSGANLoss
+  loss_criterionNCE: PatchNCELoss
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - real_B
+      - background
+      image_only: true
+    - name: ToGrayScaled
+      keys:
+        - real_B
+    - name: LoadGraphAndFilterByRandomRadiusd
+      keys:
+        - real_A
+      image_resolutions: 
+        - [304,304] # for 304x304 images
+      min_radius: [0,0]
+      max_dropout_prob: 0.02
+      # radius_range: [0.0001, 0.0015]
+      # p_exp: 2
+    - name: EnsureChannelFirstd
+      keys:
+      - real_A
+      - real_B
+      - background
+      strict_check: false
+      channel_dim: no_channel
+    - name: Resized
+      keys:
+      - real_B
+      spatial_size:
+      - 304
+      - 304
+      # - 512
+      # - 512
+      mode: bilinear
+    - name: ScaleIntensityd
+      keys:
+      - real_A
+      - real_B
+      - background
+      minv: 0
+      maxv: 1
+    - name: RandFlipd
+      keys:
+      - real_A
+      prob: 0.5
+      spatial_axis:
+      - 0
+      - 1
+    - name: RandRotate90d
+      keys:
+      - real_A
+      prob: 0.75
+    - name: RandFlipd
+      keys:
+      - real_B
+      - background
+      prob: 0.5
+      spatial_axis:
+      - 0
+      - 1
+    - name: RandRotate90d
+      keys:
+      - real_B
+      - background
+      prob: 0.75
+    - name: RandRotated
+      keys:
+      - real_A
+      - real_B
+      - background
+      prob: 1
+      range_x: 0.17453292519943295
+      padding_mode: zeros
+    - name: AddRandomBackgroundNoised
+      keys:
+      - real_A
+    - name: CastToTyped
+      keys:
+      - real_A
+      - real_B
+      dtype: dtype
+  post_processing:
+    prediction: null
+    label: null
+Test:
+  batch_size: 1
+  data:
+    real_A:
+      files: /home/linus/Datasets/OCTA/OCTA_synth/dataset_16_02_23/*.csv
+    background:
+      files: /home/linus/repos/OCTA-seg/datasets/background_images/*.png
+  save_comparisons: false
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - background
+      allow_missing_keys: true
+      image_only: true
+    - name: LoadGraphAndFilterByRandomRadiusd
+      keys:
+        - real_A
+      image_resolutions: 
+        - [304,304]
+      allow_missing_keys: true
+    - name: ScaleIntensityd
+      keys:
+      - real_A
+      - background
+      allow_missing_keys: true
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+      - real_A
+      - background
+      allow_missing_keys: true
+      channel_dim: no_channel
+      strict_check: false
+    - name: Rotate90d
+      allow_missing_keys: true
+      keys:
+      - background
+      k: 1
+    - name: Flipd
+      allow_missing_keys: true
+      keys:
+      - background
+      spatial_axis: 0
+    - name: AddRandomBackgroundNoised
+      keys:
+      - real_A
+    - name: CastToTyped
+      keys:
+      - real_A
+      allow_missing_keys: true
+      dtype: dtype
+  post_processing:
+    prediction: null
+    label: null
+Output:
+  save_dir: /home/linus/repos/OCTA-seg/results/cut
+  save_to_disk: true
+  save_to_tensorboard: false
