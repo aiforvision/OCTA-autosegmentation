@@ -15,6 +15,7 @@ from models.nice_gan import NiceGAN
 from models.cycle_gan import CycleGAN
 from models.cut import CUTModel
 from models.negcut import NEGCUTModel
+from models.dclgan import DCLGAN
 
 V = TypeVar("V")
 
@@ -1004,7 +1005,7 @@ class Negative_Generator(nn.Module):
             self.return_noise.append(noise)
         return self.return_feats
 
-
+# TODO move to function
 MODEL_DICT: dict[str, Union[ResnetGenerator, NLayerDiscriminator, DynUNet]] = {
     "DynUNet": DynUNet,
     "GanSegModel": GanSegModel,
@@ -1020,5 +1021,6 @@ MODEL_DICT: dict[str, Union[ResnetGenerator, NLayerDiscriminator, DynUNet]] = {
     "PatchSamplerF": PatchSampleF,
     "CUTModel": CUTModel,
     "NEGCUTModel": NEGCUTModel,
-    "Negative_Generator": Negative_Generator
+    "Negative_Generator": Negative_Generator,
+    "DCLGAN": DCLGAN
 }
