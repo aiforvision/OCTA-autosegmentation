@@ -14,6 +14,7 @@ from models.skrgan import SkrGAN
 from models.nice_gan import NiceGAN
 from models.cycle_gan import CycleGAN
 from models.cut import CUTModel
+from models.negcut import NEGCUTModel
 
 V = TypeVar("V")
 
@@ -515,8 +516,10 @@ class Normalize(nn.Module):
         out = x.div(norm + 1e-7)
         return out
 
+####################################
 # NICE GAN
 # Taken from https://github.com/alpc91/NICE-GAN-pytorch
+####################################
 
 class adaILN(nn.Module):
     def __init__(self, num_features, eps=1e-5, momentum=0.9, using_moving_average=True, using_bn=False):
@@ -875,6 +878,10 @@ class NiceDiscriminator(nn.Module):
         
         return out0, out1, cam_logit, heatmap, z
     
+####################################
+# CUT https://github.com/taesungp/contrastive-unpaired-translation
+####################################
+
 def init_net(net: nn.Module, init_type='normal', init_gain=0.02, device: torch.device="cpu", debug=False, initialize_weights=True):
     """Initialize a network: 1. register CPU/GPU device (with multi-GPU support); 2. initialize the network weights
     Parameters:
@@ -905,21 +912,20 @@ class PatchSampleF(nn.Module):
         self.init_type = init_type
         self.init_gain = init_gain
 
-    def create_mlp(self, feats: list[torch.Tensor], device: torch.device):
+    def create_mlp(self, feats: list[torch.Tensor]):
         for mlp_id, feat in enumerate(feats):
             input_nc = feat.shape[1]
             mlp = nn.Sequential(*[nn.Linear(input_nc, self.nc), nn.ReLU(), nn.Linear(self.nc, self.nc)])
-            if device != "cpu":
-                mlp.cuda()
+            mlp.to(device=feat.device, non_blocking=True)
             setattr(self, 'mlp_%d' % mlp_id, mlp)
-        init_net(self, self.init_type, self.init_gain, device)
+        init_net(self, self.init_type, self.init_gain, device=feat.device)
         self.mlp_init = True
 
     def forward(self, feats: list[torch.Tensor], num_patches=64, patch_ids=None) -> Tuple[list[torch.Tensor], list[torch.Tensor]]:
         return_ids = []
         return_feats = []
         if self.use_mlp and not self.mlp_init:
-            self.create_mlp(feats, feats[0].device)
+            self.create_mlp(feats)
         for feat_id, feat in enumerate(feats):
             B, H, W = feat.shape[0], feat.shape[2], feat.shape[3]
             feat_reshape = feat.permute(0, 2, 3, 1).flatten(1, 2)
@@ -946,6 +952,57 @@ class PatchSampleF(nn.Module):
                 x_sample = x_sample.permute(0, 2, 1).reshape([B, x_sample.shape[-1], H, W])
             return_feats.append(x_sample)
         return return_feats, return_ids
+    
+####################################
+# NEGCUT https://github.com/WeilunWang/NEGCUT
+####################################
+class Negative_Generator(nn.Module):
+    def __init__(self, use_conv=False, num_patches=256, nc=256, z_dim=64, init_type='kaiming', init_gain=0.02):
+        # potential issues: currently, we use the same patch_ids for multiple images in the batch
+        super(Negative_Generator, self).__init__()
+        self.l2norm = Normalize(2)
+        self.num_patches = num_patches
+        self.nc = nc
+        self.z_dim = z_dim
+        self.use_conv = use_conv
+        self.layer_init = False
+        self.init_type = init_type
+        self.init_gain = init_gain
+
+    def create_layers(self, feats: list[torch.Tensor]):
+        for feat_id, feat in enumerate(feats):
+            input_nc = feat.shape[1]
+            if self.use_conv:
+                conv = nn.Sequential(*[nn.Conv2d(input_nc, self.nc, 1, 1), nn.ReLU(), nn.Conv2d(self.nc, self.nc, 1, 1)])
+                conv.to(device=feats[0].device, non_blocking=True)
+                setattr(self, 'conv_%d' % feat_id, conv)
+            mlp = nn.Sequential(*[nn.Linear(self.nc + self.z_dim, self.nc), nn.ReLU(), nn.Linear(self.nc, self.nc)])
+            mlp.to(device=feats[0].device, non_blocking=True)
+            setattr(self, 'mlp_%d' % feat_id, mlp)
+        init_net(self, self.init_type, self.init_gain, device=feat.device)
+        self.layer_init = True
+
+    def forward(self, feats: list[torch.Tensor], num_patches: int):
+        self.return_feats = []
+        self.return_noise = []
+        if not self.layer_init:
+            self.create_layers(feats)
+        for feat_id, feat in enumerate(feats):
+            noise = torch.randn([feat.size(0), self.num_patches, self.z_dim])
+            if torch.cuda.is_available():
+                noise = noise.to(device=feat.device, non_blocking=True)
+            if self.use_conv:
+                conv = getattr(self, 'conv_%d' % feat_id)
+                feat = conv(feat)
+            feat = feat.permute(0, 2, 3, 1).mean(dim=(1, 2))
+            feat = feat.unsqueeze(dim=1).repeat(1, num_patches, 1)
+            inp = torch.cat([feat, noise], dim=2).flatten(0, 1)
+            mlp = getattr(self, 'mlp_%d' % feat_id)
+            neg_sample = mlp(inp)
+            neg_sample = self.l2norm(neg_sample)
+            self.return_feats.append(neg_sample)
+            self.return_noise.append(noise)
+        return self.return_feats
 
 
 MODEL_DICT: dict[str, Union[ResnetGenerator, NLayerDiscriminator, DynUNet]] = {
@@ -961,5 +1018,7 @@ MODEL_DICT: dict[str, Union[ResnetGenerator, NLayerDiscriminator, DynUNet]] = {
     "NiceResnetGenerator": NiceResnetGenerator,
     "NiceDiscriminator": NiceDiscriminator,
     "PatchSamplerF": PatchSampleF,
-    "CUTModel": CUTModel
+    "CUTModel": CUTModel,
+    "NEGCUTModel": NEGCUTModel,
+    "Negative_Generator": Negative_Generator
 }
