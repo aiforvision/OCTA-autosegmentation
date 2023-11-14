@@ -23,7 +23,7 @@ Train:
     real_B:
       # files: /home/linus/Datasets/OCTA/processed/OCTA_TUMNeuro_initial_3_qc_combined/*.png
       files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
-      split: /home/linus/Datasets/OCTA/OCTA-500/processed/train_0.txt
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/train_
       # files: /home/linus/repos/OCTA-seg/datasets/OCTA_TUMNeuro_prototyping/*.png
       # files: /home/shared/Data/Munich_macular_holes/*.png
       # files: /home/shared/Data/WEH_OCTA/*.png
@@ -31,10 +31,10 @@ Train:
       files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/*.csv
     background:
       files: /home/linus/repos/OCTA-seg/datasets/background_images/*.png
-  epochs: 50
+  epochs: 100
   epochs_decay: 0
   save_interval: 25
-  val_interval: 100
+  val_interval: 200
   batch_size: 4
   lr: 0.0002
   loss_criterionGAN: LSGANLoss
@@ -127,7 +127,7 @@ Test:
   data:
     real_B:
       files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
-      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
     real_A:
       files: /home/linus/Datasets/OCTA/OCTA_synth/dataset_16_02_23/*.csv
     background:
