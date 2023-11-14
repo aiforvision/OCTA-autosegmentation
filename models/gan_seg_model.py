@@ -111,7 +111,7 @@ class GanSegModel(BaseModelABC):
         real_A: torch.Tensor = mini_batch["real_A"].to(device, non_blocking=True)
         real_B: torch.Tensor = mini_batch["real_B"].to(device, non_blocking=True)
         real_A_seg: torch.Tensor = mini_batch["real_A_seg"].to(device, non_blocking=True)
-        self.optimizer_D.zero_grad()
+        self.optimizer_D.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast():
             fake_B, idt_B, pred_fake_B, pred_real_B = self.forward_GD((real_A, real_B))
             loss_D_fake = self.dg_loss(pred_fake_B, False)
@@ -121,8 +121,8 @@ class GanSegModel(BaseModelABC):
         scaler.scale(loss_D).backward()
         scaler.step(self.optimizer_D)
 
-        self.optimizer_G.zero_grad()
-        self.optimizer_S.zero_grad()
+        self.optimizer_G.zero_grad(set_to_none=True)
+        self.optimizer_S.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast():
             pred_fake_B, fake_B_seg, real_B_seg, idt_B_seg  = self.forward_GS(real_B, fake_B, idt_B)
             real_B_seg[real_B_seg<=0.5]=0

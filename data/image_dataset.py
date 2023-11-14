@@ -74,7 +74,7 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoa
             train_files = [dict(zip(data, t)) for t in zip(*data.values())]
         else:
             data_set = UnalignedZipDataset(data, transform, phase, config["General"]["inference"])
-            loader = DataLoader(data_set, batch_size=batch_size or config[phase].get("batch_size") or 1, shuffle=phase!=Phase.TEST, num_workers=8, pin_memory=torch.cuda.is_available())
+            loader = DataLoader(data_set, batch_size=batch_size or config[phase].get("batch_size") or 1, shuffle=phase!=Phase.TEST, num_workers=ceil(cpu_count()/2), pin_memory=torch.cuda.is_available())
             return loader
 
     data_set = Dataset(train_files, transform=transform)

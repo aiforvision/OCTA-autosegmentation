@@ -99,12 +99,13 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
 
         epoch_tqdm.set_description(f"avg train loss: {epoch_loss:.4f}")
 
-        train_sample_path = model.plot_sample(
-            visualizer,
-            mini_batch,
-            outputs,
-            suffix="train_latest"
-        )
+        if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
+            train_sample_path = model.plot_sample(
+                visualizer,
+                mini_batch,
+                outputs,
+                suffix="train_latest"
+            )
 
         # VALIDATION
         if val_loader is not None and (epoch + 1) % val_interval == 0:
@@ -140,12 +141,13 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                     best_metric_epoch = epoch
                 save_best = True
 
-                val_sample_path = model.plot_sample(
-                    visualizer,
-                    val_mini_batch,
-                    outputs,
-                    suffix="val_latest"
-                )
+                if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
+                    val_sample_path = model.plot_sample(
+                        visualizer,
+                        val_mini_batch,
+                        outputs,
+                        suffix="val_latest"
+                    )
         
         if (epoch + 1) % save_interval == 0:
             copyfile(train_sample_path, train_sample_path.replace("latest", str(epoch+1)))
@@ -157,20 +159,21 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
 
         
         # Checkpoint saving
-        for optimizer_name in model.optimizer_mapping.keys():
-            checkpoint_path = visualizer.save_model(None, getattr(model,optimizer_name), epoch+1, f"latest_{optimizer_name}")
-            if (epoch + 1) % save_interval == 0:
-                copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
-            if save_best:
-                copyfile(checkpoint_path, checkpoint_path.replace("latest", "best"))
-
-        for model_names in model.optimizer_mapping.values():
-            for model_name in model_names:
-                visualizer.save_model(getattr(model,model_name), None, epoch+1, f"latest_{model_name}")
+        if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
+            for optimizer_name in model.optimizer_mapping.keys():
+                checkpoint_path = visualizer.save_model(None, getattr(model,optimizer_name), epoch+1, f"latest_{optimizer_name}")
                 if (epoch + 1) % save_interval == 0:
                     copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
                 if save_best:
                     copyfile(checkpoint_path, checkpoint_path.replace("latest", "best"))
+
+            for model_names in model.optimizer_mapping.values():
+                for model_name in model_names:
+                    visualizer.save_model(getattr(model,model_name), None, epoch+1, f"latest_{model_name}")
+                    if (epoch + 1) % save_interval == 0:
+                        copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
+                    if save_best:
+                        copyfile(checkpoint_path, checkpoint_path.replace("latest", "best"))
 
         visualizer.plot_losses_and_metrics(epoch_metrics, epoch)
         visualizer.log_model_params(model, epoch)
@@ -188,6 +191,8 @@ if __name__ == "__main__":
     parser.add_argument('--start_epoch', type=int, default=0)
     parser.add_argument('--epoch', type=str, default='latest')
     parser.add_argument('--split', type=str, default='')
+    parser.add_argument('--save_latest', type=bool, default=True, help="If true, save a checkpoint and visuals after each epoch under the tag 'latest'.")
+    parser.add_argument('--use_all_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
     args = parser.parse_args()
 
     # Read config file

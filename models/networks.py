@@ -895,7 +895,7 @@ def init_net(net: nn.Module, init_type='normal', init_gain=0.02, device: torch.d
     """
     if device != "cpu":
         assert(torch.cuda.is_available())
-        net.to(device)
+        net.to(device, non_blocking=True)
         # if not amp:
         # net = torch.nn.DataParallel(net, gpu_ids)  # multi-GPUs for non-AMP training
     if initialize_weights:

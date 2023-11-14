@@ -87,7 +87,7 @@ def training_function(config: dict):
                 batch_data["image"].to(device),
                 batch_data["label"].to(device),
             )
-            optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
             with torch.cuda.amp.autocast():
                 outputs = model(inputs)
                 outputs=outputs.squeeze(-1)

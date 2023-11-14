@@ -84,7 +84,7 @@ class NEGCUTModel(BaseModelABC):
 
         # Initialize netF and netN
         with torch.cuda.amp.autocast():
-            feat_k = self.netG(init_mini_batch["image"].to(config["General"]["device"]), self.nce_layers, encode_only=True)
+            feat_k = self.netG(init_mini_batch["image"].to(config["General"]["device"], non_blocking=True), self.nce_layers, encode_only=True)
             feat_k_pool, sample_ids = self.netF(feat_k, self.num_patches, None)
             neg_k_pool, _ = self.netF_(feat_k, num_patches=0)
             neg_k_pool: list[torch.Tensor] = self.netN(neg_k_pool, self.num_patches)
@@ -168,7 +168,7 @@ class NEGCUTModel(BaseModelABC):
         ####################################
             # update D
             self.netD.requires_grad_(True)
-            self.optimizer_D.zero_grad()
+            self.optimizer_D.zero_grad(set_to_none=True)
 
             fake = fake_B.detach()
             # Fake; stop backprop to the generator by detaching fake_B
@@ -188,7 +188,7 @@ class NEGCUTModel(BaseModelABC):
         ####################################
         # update N
         self.netN.requires_grad_(True)
-        self.optimizer_N.zero_grad()
+        self.optimizer_N.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast():
             loss_N = self._compute_N_loss(real_A, fake_B, real_B, idt_B)
 
@@ -198,8 +198,8 @@ class NEGCUTModel(BaseModelABC):
 
         ####################################
         # update G and F
-        self.optimizer_G.zero_grad()
-        self.optimizer_F.zero_grad()
+        self.optimizer_G.zero_grad(set_to_none=True)
+        self.optimizer_F.zero_grad(set_to_none=True)
         self.netD.requires_grad_(False)
         with torch.cuda.amp.autocast():
             fake = fake_B

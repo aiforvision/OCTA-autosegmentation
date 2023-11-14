@@ -77,7 +77,7 @@ class CUTModel(BaseModelABC):
 
         # Initialize netF
         with torch.cuda.amp.autocast():
-            feat_k = self.netG(init_mini_batch["image"].to(config["General"]["device"]), self.nce_layers, encode_only=True)
+            feat_k = self.netG(init_mini_batch["image"].to(config["General"]["device"], non_blocking=True), self.nce_layers, encode_only=True)
             feat_k_pool, sample_ids = self.netF(feat_k, self.num_patches, None)
 
         super().initialize_model_and_optimizer(init_mini_batch,init_weights,config,args,scaler,phase)
@@ -157,7 +157,7 @@ class CUTModel(BaseModelABC):
 
             # update D
             self.netD.requires_grad_(True)
-            self.optimizer_D.zero_grad()
+            self.optimizer_D.zero_grad(set_to_none=True)
 
             fake = fake_B.detach()
             # Fake; stop backprop to the generator by detaching fake_B
@@ -176,8 +176,8 @@ class CUTModel(BaseModelABC):
 
         ####################################
         # update G and F
-        self.optimizer_G.zero_grad()
-        self.optimizer_F.zero_grad()
+        self.optimizer_G.zero_grad(set_to_none=True)
+        self.optimizer_F.zero_grad(set_to_none=True)
         self.netD.requires_grad_(False)
         with torch.cuda.amp.autocast():
             fake = fake_B

@@ -180,7 +180,7 @@ class CycleGAN(BaseModelABC):
             # G_A and G_B
             self.netD_A.requires_grad_(False)
             self.netD_B.requires_grad_(False)
-            self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
+            self.optimizer_G.zero_grad(set_to_none=True)  # set G_A and G_B's gradients to zero
             # Identity loss
             if self.lambda_idt > 0:
                 # G_A should be identity if real_B is fed: ||G_A(B) - B||
@@ -211,7 +211,7 @@ class CycleGAN(BaseModelABC):
         # D_A and D_B
         self.netD_A.requires_grad_(True)
         self.netD_B.requires_grad_(True)
-        self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
+        self.optimizer_D.zero_grad(set_to_none=True)   # set D_A and D_B's gradients to zero
 
         _fake_B = self.fake_B_pool.query(fake_B)
         with torch.cuda.amp.autocast():

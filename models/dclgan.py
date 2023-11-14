@@ -98,7 +98,7 @@ class DCLGAN(BaseModelABC):
 
         # Initialize netF1 and netF2
         with torch.cuda.amp.autocast():
-            feat_k = self.netG_A(init_mini_batch["image"].to(config["General"]["device"]), self.nce_layers, encode_only=True)
+            feat_k = self.netG_A(init_mini_batch["image"].to(config["General"]["device"], non_blocking=True), self.nce_layers, encode_only=True)
             _, sample_ids = self.netF1(feat_k, self.num_patches, None)
             _, _ = self.netF2(feat_k, self.num_patches, sample_ids)
 
@@ -217,7 +217,7 @@ class DCLGAN(BaseModelABC):
         # D_A and D_B
         self.netD_A.requires_grad_(True)
         self.netD_B.requires_grad_(True)
-        self.optimizer_D.zero_grad()   # set D_A and D_B's gradients to zero
+        self.optimizer_D.zero_grad(set_to_none=True)   # set D_A and D_B's gradients to zero
 
         _fake_B = self.fake_B_pool.query(fake_B)
         with torch.cuda.amp.autocast():
@@ -236,8 +236,8 @@ class DCLGAN(BaseModelABC):
         with torch.cuda.amp.autocast():
             self.netD_A.requires_grad_(False)
             self.netD_B.requires_grad_(False)
-            self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
-            self.optimizer_F.zero_grad()
+            self.optimizer_G.zero_grad(set_to_none=True)  # set G_A and G_B's gradients to zero
+            self.optimizer_F.zero_grad(set_to_none=True)
             # Identity loss
             if self.lambda_idt > 0:
                 # G_A should be identity if real_B is fed: ||G_A(B) - B||

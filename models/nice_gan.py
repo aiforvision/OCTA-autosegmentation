@@ -143,7 +143,7 @@ class NiceGAN(BaseModelABC):
         
         ####################################
         # Update D
-        self.D_optim.zero_grad()
+        self.D_optim.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast():
             real_LA_logit,real_GA_logit, real_A_cam_logit, _, real_A_z = self.disA(real_A)
             real_LB_logit,real_GB_logit, real_B_cam_logit, _, real_B_z = self.disB(real_B)
@@ -174,7 +174,7 @@ class NiceGAN(BaseModelABC):
 
         ####################################
         # Update G
-        self.G_optim.zero_grad()
+        self.G_optim.zero_grad(set_to_none=True)
         with torch.cuda.amp.autocast():
             _,  _,  _, _, real_A_z = self.disA(torch.maximum(real_A,background)) # TODO might be incorrect
             # _,  _,  _, _, real_A_z = self.disA(real_A)
