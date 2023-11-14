@@ -2,15 +2,21 @@ import argparse
 import json
 import torch
 import os
-from tqdm import tqdm
 import yaml
 
 from models.model import define_model
 from models.networks import init_weights
 
 from data.image_dataset import get_dataset, get_post_transformation
-from utils.metrics import MetricsManager, Task
+from utils.metrics import MetricsManager
 from utils.enums import Phase
+from utils.visualizer import DynamicDisplay
+
+from rich.live import Live
+from rich.progress import Progress, TimeElapsedColumn
+from rich.spinner import Spinner
+from rich.console import  Group
+group = Group()
 
 # Parse input arguments
 parser = argparse.ArgumentParser(description='')
@@ -30,26 +36,32 @@ with open(path, "r") as stream:
 
 config[Phase.VALIDATION]["batch_size"]=1
 
-task: Task = config["General"]["task"]
+with Live(group, refresh_per_second=10):
+    with DynamicDisplay(group, Spinner("bouncingBall", text="Loading validation data...")):
+        val_loader = get_dataset(config, Phase.VALIDATION, use_all_workers=args.use_all_workers)
+        post_transformations_val = get_post_transformation(config, phase=Phase.VALIDATION)
+        init_mini_batch = next(iter(val_loader))
 
-val_loader = get_dataset(config, Phase.VALIDATION, use_all_workers=args.use_all_workers)
-post_transformations_val = get_post_transformation(config, phase=Phase.VALIDATION)
+    device = torch.device(config["General"].get("device") or "cpu")
 
-device = torch.device(config["General"].get("device") or "cpu")
+    scaler = torch.cuda.amp.GradScaler(enabled=False)
 
-scaler = torch.cuda.amp.GradScaler(enabled=False)
+    with DynamicDisplay(group, Spinner("bouncingBall", text="Initializing model...")):
+        model = define_model(config, phase=Phase.VALIDATION)
+        model.initialize_model_and_optimizer(init_mini_batch, init_weights, config, args, scaler, phase=Phase.VALIDATION)
 
-model = define_model(config, phase=Phase.VALIDATION)
-model.initialize_model_and_optimizer(next(iter(val_loader)), init_weights, config, args, scaler, phase=Phase.VALIDATION)
+    metrics = MetricsManager(Phase.VALIDATION)
+    predictions = []
 
-metrics = MetricsManager(Phase.VALIDATION)
-predictions = []
-
-model.eval()
-with torch.no_grad():
-    for val_mini_batch in tqdm(val_loader, desc=Phase.VALIDATION.value):
-        outputs, losses = model.inference(val_mini_batch, post_transformations_val, device=device, phase=Phase.VALIDATION)
-        model.compute_metric(outputs, metrics)
-            
-    metrics = {k: float(str(round(v, 3))) for k,v in metrics.aggregate_and_reset(Phase.VALIDATION).items()}
-    print(f'Metrics: {metrics}')
+    model.eval()
+    progress = Progress(*Progress.get_default_columns(), TimeElapsedColumn())
+    progress.add_task("Validating:", total=len(val_loader))
+    with DynamicDisplay(group, progress):
+        with torch.no_grad():
+            for val_mini_batch in val_loader:
+                outputs, losses = model.inference(val_mini_batch, post_transformations_val, device=device, phase=Phase.VALIDATION)
+                model.compute_metric(outputs, metrics)
+                progress.advance(task_id=0)
+                
+metrics = {k: float(str(round(v, 3))) for k,v in metrics.aggregate_and_reset(Phase.VALIDATION).items()}
+print(f'Metrics: {metrics}')

@@ -12,6 +12,7 @@ import yaml
 import math
 from PIL import Image
 from utils.enums import Phase, Task
+from rich.console import Group, RenderableType
 
 class Visualizer():
     """
@@ -493,3 +494,14 @@ def save_prediction_csv(save_dir: str, predictions: list[list]):
             writer.writerow(["case","class", "P0", "P1", "P2"])
             for prediction in predictions:
                 writer.writerow(prediction)
+
+class DynamicDisplay():
+    def __init__(self, group: Group, *renderables: RenderableType) -> None:
+        self.group = group
+        self.renderables = renderables
+    def __enter__(self):
+        self.group.renderables.extend(self.renderables)
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        for r in self.renderables:
+            self.group.renderables.remove(r)
+

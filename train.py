@@ -9,17 +9,23 @@ from random import randint
 from models.model import define_model
 from models.networks import init_weights
 import time
-from tqdm import tqdm
 from shutil import copyfile
 from copy import deepcopy
 
+from rich.live import Live
+from rich.progress import Progress, TimeElapsedColumn
+from rich.spinner import Spinner
+from rich.console import  Group
+group = Group()
+
 from data.image_dataset import get_dataset, get_post_transformation
 from utils.metrics import MetricsManager
-from utils.visualizer import Visualizer
+from utils.visualizer import Visualizer, DynamicDisplay
 from models.base_model_abc import BaseModelABC
 from utils.enums import Phase
 
 def train(args: argparse.Namespace, config: dict[str,dict]):
+    global group
     for phase in Phase:
         if phase not in config:
             continue
@@ -46,15 +52,17 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
     else:
         val_loader = None
         print("No validation config. Skipping validation steps.")
-    
-    init_mini_batch = next(iter(train_loader))
-    input_key = [k for k in init_mini_batch.keys() if not k.endswith("_path")][0]
-    init_mini_batch["image"] = init_mini_batch[input_key]
 
-    model: BaseModelABC = define_model(deepcopy(config), phase = Phase.TRAIN)
-    model.initialize_model_and_optimizer(init_mini_batch, init_weights, config, args, scaler, phase=Phase.TRAIN)
+    with DynamicDisplay(group, Spinner("bouncingBall", text="Loading training data...")):
+        init_mini_batch = next(iter(train_loader))
+        input_key = [k for k in init_mini_batch.keys() if not k.endswith("_path")][0]
+        init_mini_batch["image"] = init_mini_batch[input_key]
 
-    visualizer.save_model_architecture(model, init_mini_batch["image"].to(device, non_blocking=True) if init_mini_batch else None)
+    with DynamicDisplay(group, Spinner("bouncingBall", text="Initializing model...")):
+        model: BaseModelABC = define_model(deepcopy(config), phase = Phase.TRAIN)
+        model.initialize_model_and_optimizer(init_mini_batch, init_weights, config, args, scaler, phase=Phase.TRAIN)
+
+        visualizer.save_model_architecture(model, init_mini_batch["image"].to(device, non_blocking=True) if init_mini_batch else None)
 
     metrics = MetricsManager(phase=Phase.TRAIN)
 
@@ -65,118 +73,137 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
         best_metric_epoch = -1
 
     total_start = time.time()
-    epoch_tqdm = tqdm(range(args.start_epoch, max_epochs), desc="epoch")
-    for epoch in epoch_tqdm:
-        epoch_metrics: dict[str, dict[str, float]] = dict()
-        epoch_metrics["loss"] = dict()
-        model.train()
-        epoch_loss = 0
-        step = 0
-        save_best = False
-        # TRAINING LOOP
-        mini_batch_tqdm = tqdm(train_loader, leave=False)
-        for mini_batch in mini_batch_tqdm:
-            step += 1
+    progress = Progress(*Progress.get_default_columns(), TimeElapsedColumn(), speed_estimate_period=300)
+    epochs = range(args.start_epoch, max_epochs)
 
-            outputs, losses = model.perform_training_step(mini_batch, scaler, post_transformations_train, device)
-            with torch.cuda.amp.autocast():
-                model.compute_metric(outputs, metrics)
-            for loss_name, loss in losses.items():
-                if f"train_{loss_name}" in epoch_metrics["loss"]:
-                    epoch_metrics["loss"][f"train_{loss_name}"] += loss
-                else:
-                    epoch_metrics["loss"][f"train_{loss_name}"] = loss
-            main_loss = list(losses.keys())[0]
-            epoch_loss += losses[main_loss]
-            mini_batch_tqdm.set_description(f"train_{main_loss}: {losses[main_loss]:.4f}")
-        
-        for lr_scheduler in model.lr_schedulers:
-            lr_scheduler.step()
+    with DynamicDisplay(group, progress):
+        progress.add_task("Epochs", total=len(epochs))
+        progress.add_task("Train Batch", total=len(train_loader), start=False)
+        if val_loader is not None:
+            progress.add_task("Validation Batch", total=min(len(val_loader),40), start=False)
+        for epoch in epochs:
+            epoch_metrics: dict[str, dict[str, float]] = dict()
+            epoch_metrics["loss"] = dict()
+            model.train()
+            epoch_loss = 0
+            step = 0
+            save_best = False
+            # TRAINING LOOP
+            for mini_batch in train_loader:
+                progress.start_task(1)
+                step += 1
 
-        epoch_metrics["loss"] = {k: v/step for k,v in epoch_metrics["loss"].items()}
-        epoch_metrics["metric"] = metrics.aggregate_and_reset(prefix=Phase.TRAIN)
-        epoch_loss /= step
+                outputs, losses = model.perform_training_step(mini_batch, scaler, post_transformations_train, device)
+                with torch.cuda.amp.autocast():
+                    model.compute_metric(outputs, metrics)
+                for loss_name, loss in losses.items():
+                    if f"train_{loss_name}" in epoch_metrics["loss"]:
+                        epoch_metrics["loss"][f"train_{loss_name}"] += loss
+                    else:
+                        epoch_metrics["loss"][f"train_{loss_name}"] = loss
+                main_loss = list(losses.keys())[0]
+                epoch_loss += losses[main_loss]
+                progress.update(task_id=1, advance=1, description=f"train {main_loss}: {losses[main_loss]:.4f}")
+            progress.stop_task(1)
 
-        epoch_tqdm.set_description(f"avg train loss: {epoch_loss:.4f}")
+            for lr_scheduler in model.lr_schedulers:
+                lr_scheduler.step()
 
-        if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
-            train_sample_path = model.plot_sample(
-                visualizer,
-                mini_batch,
-                outputs,
-                suffix="train_latest"
-            )
+            epoch_metrics["loss"] = {k: v/step for k,v in epoch_metrics["loss"].items()}
+            epoch_metrics["metric"] = metrics.aggregate_and_reset(prefix=Phase.TRAIN)
+            epoch_loss /= step
 
-        # VALIDATION
-        if val_loader is not None and (epoch + 1) % val_interval == 0:
-            model.eval()
-            val_loss = 0
-            with torch.no_grad():
-                step = 0
-                for val_mini_batch in tqdm(val_loader, desc=Phase.VALIDATION.value, leave=False):
-                    step += 1
-                    with torch.cuda.amp.autocast():
-                        outputs, losses = model.inference(val_mini_batch, post_transformations_val, device=device, phase=Phase.VALIDATION)
-                        model.compute_metric(outputs, metrics)
+            progress.update(task_id=1, description=f"Avg train loss: {epoch_loss:.4f}")
 
-                    for loss_name, loss in losses.items():
-                        if f"val_{loss_name}" in epoch_metrics["loss"]:
-                            epoch_metrics["loss"][f"val_{loss_name}"] += loss.item()
-                        else:
-                            epoch_metrics["loss"][f"val_{loss_name}"] = loss.item()
-                    main_loss = list(losses.keys())[0]
-                    val_loss += losses[main_loss].item()
-                    mini_batch_tqdm.set_description(f"train_{main_loss}: {losses[main_loss].item():.4f}")
-                    if step >= 40:
-                        break
-                
-
-                epoch_metrics["loss"] = {k: v/step if k.startswith(Phase.VALIDATION.value) else v for k,v in epoch_metrics["loss"].items()}
-                epoch_metrics["metric"].update(metrics.aggregate_and_reset(prefix=Phase.VALIDATION))
-                val_loss /= step
-                epoch_tqdm.set_description(f"avg train loss: {val_loss:.4f}")
-                metric_comp =  epoch_metrics["metric"][metrics.get_comp_metric(Phase.VALIDATION)]
-                if metric_comp > best_metric:
-                    best_metric = metric_comp
-                    best_metric_epoch = epoch
-                save_best = True
-
-                if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
-                    val_sample_path = model.plot_sample(
+            if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
+                with DynamicDisplay(group, Spinner("bouncingBall", text="Saving training visuals...")):
+                    train_sample_path = model.plot_sample(
                         visualizer,
-                        val_mini_batch,
+                        mini_batch,
                         outputs,
-                        suffix="val_latest"
+                        suffix="train_latest"
                     )
-        
-        if (epoch + 1) % save_interval == 0:
-            copyfile(train_sample_path, train_sample_path.replace("latest", str(epoch+1)))
-            if (epoch + 1) % val_interval == 0:
-                copyfile(val_sample_path, val_sample_path.replace("latest", str(epoch+1)))
-        if save_best:
-            copyfile(train_sample_path, train_sample_path.replace("latest", "best"))
-            copyfile(val_sample_path, val_sample_path.replace("latest", "best"))
 
-        
-        # Checkpoint saving
-        if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
-            for optimizer_name in model.optimizer_mapping.keys():
-                checkpoint_path = visualizer.save_model(None, getattr(model,optimizer_name), epoch+1, f"latest_{optimizer_name}")
-                if (epoch + 1) % save_interval == 0:
-                    copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
-                if save_best:
-                    copyfile(checkpoint_path, checkpoint_path.replace("latest", "best"))
+            # VALIDATION
+            if val_loader is not None and (epoch + 1) % val_interval == 0:
+                progress.start_task(2)
+                model.eval()
+                val_loss = 0
+                with torch.no_grad():
+                    step = 0
+                    for val_mini_batch in val_loader:
+                        step += 1
+                        with torch.cuda.amp.autocast():
+                            outputs, losses = model.inference(val_mini_batch, post_transformations_val, device=device, phase=Phase.VALIDATION)
+                            model.compute_metric(outputs, metrics)
 
-            for model_names in model.optimizer_mapping.values():
-                for model_name in model_names:
-                    visualizer.save_model(getattr(model,model_name), None, epoch+1, f"latest_{model_name}")
-                    if (epoch + 1) % save_interval == 0:
-                        copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
-                    if save_best:
-                        copyfile(checkpoint_path, checkpoint_path.replace("latest", "best"))
+                        for loss_name, loss in losses.items():
+                            if f"val_{loss_name}" in epoch_metrics["loss"]:
+                                epoch_metrics["loss"][f"val_{loss_name}"] += loss.item()
+                            else:
+                                epoch_metrics["loss"][f"val_{loss_name}"] = loss.item()
+                        main_loss = list(losses.keys())[0]
+                        val_loss += losses[main_loss].item()
+                        progress.update(task_id=2, advance=1, description=f"val {main_loss}: {losses[main_loss].item():.4f}")
+                        if step >= 40:
+                            break
+                    
 
-        visualizer.plot_losses_and_metrics(epoch_metrics, epoch)
-        visualizer.log_model_params(model, epoch)
+                    epoch_metrics["loss"] = {k: v/step if k.startswith(Phase.VALIDATION.value) else v for k,v in epoch_metrics["loss"].items()}
+                    epoch_metrics["metric"].update(metrics.aggregate_and_reset(prefix=Phase.VALIDATION))
+                    val_loss /= step
+                    progress.update(task_id=2, description=f"Avg val loss: {val_loss:.4f}")
+                    metric_comp =  epoch_metrics["metric"][metrics.get_comp_metric(Phase.VALIDATION)]
+                    if metric_comp > best_metric:
+                        best_metric = metric_comp
+                        best_metric_epoch = epoch
+                    save_best = True
+
+                    if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
+                        with DynamicDisplay(group, Spinner("bouncingBall", text="Saving validation visuals...")):
+                            val_sample_path = model.plot_sample(
+                                visualizer,
+                                val_mini_batch,
+                                outputs,
+                                suffix="val_latest"
+                            )
+                progress.stop_task(2)
+            
+            if (epoch + 1) % save_interval == 0:
+                copyfile(train_sample_path, train_sample_path.replace("latest", str(epoch+1)))
+                if (epoch + 1) % val_interval == 0:
+                    copyfile(val_sample_path, val_sample_path.replace("latest", str(epoch+1)))
+            if save_best:
+                copyfile(train_sample_path, train_sample_path.replace("latest", "best"))
+                copyfile(val_sample_path, val_sample_path.replace("latest", "best"))
+
+            
+            # Checkpoint saving
+            if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
+                with DynamicDisplay(group, Spinner("bouncingBall", text="Saving checkpoints...")):
+                    for optimizer_name in model.optimizer_mapping.keys():
+                        checkpoint_path = visualizer.save_model(None, getattr(model,optimizer_name), epoch+1, f"latest_{optimizer_name}")
+                        if (epoch + 1) % save_interval == 0:
+                            copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
+                        if save_best:
+                            copyfile(checkpoint_path, checkpoint_path.replace("latest", "best"))
+
+                    for model_names in model.optimizer_mapping.values():
+                        for model_name in model_names:
+                            visualizer.save_model(getattr(model,model_name), None, epoch+1, f"latest_{model_name}")
+                            if (epoch + 1) % save_interval == 0:
+                                copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
+                            if save_best:
+                                copyfile(checkpoint_path, checkpoint_path.replace("latest", "best"))
+
+            with DynamicDisplay(group, Spinner("bouncingBall", text="Saving metrics...")):
+                visualizer.plot_losses_and_metrics(epoch_metrics, epoch)
+                visualizer.log_model_params(model, epoch)
+
+            progress.reset(1)
+            if val_loader is not None:
+                progress.reset(2)
+            progress.advance(task_id=0, advance=1)
 
     total_time = time.time() - total_start
 
@@ -205,4 +232,5 @@ if __name__ == "__main__":
         config["General"]["seed"] = randint(0,1e6)
     set_determinism(seed=config["General"]["seed"])
 
-    train(args, config)
+    with Live(group, refresh_per_second=10):
+        train(args, config)

@@ -1,3 +1,6 @@
+######################
+# General
+#####################
 monai
 numpy
 matplotlib
@@ -9,6 +12,11 @@ scipy
 natsort
 PyYAML
 scikit-image
+rich
+
+######################
+# For vesselsimulation
+#####################
 anytree
 nibabel
 # Not available for python 3.11 yet (09.05.23)
