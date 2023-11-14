@@ -78,9 +78,6 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
 
     with DynamicDisplay(group, progress):
         progress.add_task("Epochs", total=len(epochs))
-        progress.add_task("Train Batch", total=len(train_loader), start=False)
-        if val_loader is not None:
-            progress.add_task("Validation Batch", total=min(len(val_loader),40), start=False)
         for epoch in epochs:
             epoch_metrics: dict[str, dict[str, float]] = dict()
             epoch_metrics["loss"] = dict()
@@ -89,8 +86,8 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             step = 0
             save_best = False
             # TRAINING LOOP
+            progress.add_task("Train Batch", total=len(train_loader))
             for mini_batch in train_loader:
-                progress.start_task(1)
                 step += 1
 
                 outputs, losses = model.perform_training_step(mini_batch, scaler, post_transformations_train, device)
@@ -104,7 +101,6 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                 main_loss = list(losses.keys())[0]
                 epoch_loss += losses[main_loss]
                 progress.update(task_id=1, advance=1, description=f"train {main_loss}: {losses[main_loss]:.4f}")
-            progress.stop_task(1)
 
             for lr_scheduler in model.lr_schedulers:
                 lr_scheduler.step()
@@ -112,8 +108,6 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             epoch_metrics["loss"] = {k: v/step for k,v in epoch_metrics["loss"].items()}
             epoch_metrics["metric"] = metrics.aggregate_and_reset(prefix=Phase.TRAIN)
             epoch_loss /= step
-
-            progress.update(task_id=1, description=f"Avg train loss: {epoch_loss:.4f}")
 
             if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
                 with DynamicDisplay(group, Spinner("bouncingBall", text="Saving training visuals...")):
@@ -123,12 +117,13 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                         outputs,
                         suffix="train_latest"
                     )
+            progress.remove_task(1)
 
             # VALIDATION
             if val_loader is not None and (epoch + 1) % val_interval == 0:
-                progress.start_task(2)
                 model.eval()
                 val_loss = 0
+                progress.add_task("Validation Batch", total=min(len(val_loader),40), start=False)
                 with torch.no_grad():
                     step = 0
                     for val_mini_batch in val_loader:
@@ -144,7 +139,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                                 epoch_metrics["loss"][f"val_{loss_name}"] = loss.item()
                         main_loss = list(losses.keys())[0]
                         val_loss += losses[main_loss].item()
-                        progress.update(task_id=2, advance=1, description=f"val {main_loss}: {losses[main_loss].item():.4f}")
+                        progress.update(task_id=1, advance=1, description=f"val {main_loss}: {losses[main_loss].item():.4f}")
                         if step >= 40:
                             break
                     
@@ -152,7 +147,6 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                     epoch_metrics["loss"] = {k: v/step if k.startswith(Phase.VALIDATION.value) else v for k,v in epoch_metrics["loss"].items()}
                     epoch_metrics["metric"].update(metrics.aggregate_and_reset(prefix=Phase.VALIDATION))
                     val_loss /= step
-                    progress.update(task_id=2, description=f"Avg val loss: {val_loss:.4f}")
                     metric_comp =  epoch_metrics["metric"][metrics.get_comp_metric(Phase.VALIDATION)]
                     if metric_comp > best_metric:
                         best_metric = metric_comp
@@ -167,7 +161,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                                 outputs,
                                 suffix="val_latest"
                             )
-                progress.stop_task(2)
+                progress.remove_task(1)
             
             if (epoch + 1) % save_interval == 0:
                 copyfile(train_sample_path, train_sample_path.replace("latest", str(epoch+1)))
@@ -199,10 +193,8 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             with DynamicDisplay(group, Spinner("bouncingBall", text="Saving metrics...")):
                 visualizer.plot_losses_and_metrics(epoch_metrics, epoch)
                 visualizer.log_model_params(model, epoch)
-
-            progress.reset(1)
-            if val_loader is not None:
-                progress.reset(2)
+            
+            progress._task_index = 1
             progress.advance(task_id=0, advance=1)
 
     total_time = time.time() - total_start

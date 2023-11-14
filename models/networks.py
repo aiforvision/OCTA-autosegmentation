@@ -932,13 +932,13 @@ class PatchSampleF(nn.Module):
             feat_reshape = feat.permute(0, 2, 3, 1).flatten(1, 2)
             if num_patches > 0:
                 if patch_ids is not None:
-                    patch_id = patch_ids[feat_id]
+                    patch_id = patch_ids[feat_id].to(dtype=torch.long, device=feat.device)
                 else:
                     # torch.randperm produces cudaErrorIllegalAddress for newer versions of PyTorch. https://github.com/taesungp/contrastive-unpaired-translation/issues/83
                     #patch_id = torch.randperm(feat_reshape.shape[1], device=feats[0].device)
                     patch_id = np.random.permutation(feat_reshape.shape[1])
                     patch_id = patch_id[:int(min(num_patches, patch_id.shape[0]))]  # .to(patch_ids.device)
-                patch_id = torch.tensor(patch_id, dtype=torch.long, device=feat.device)
+                    patch_id = torch.tensor(patch_id, dtype=torch.long, device=feat.device)
                 x_sample = feat_reshape[:, patch_id, :].flatten(0, 1)  # reshape(-1, x.shape[1])
             else:
                 x_sample = feat_reshape
