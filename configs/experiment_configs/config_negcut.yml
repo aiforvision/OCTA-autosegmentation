@@ -136,6 +136,12 @@ Train:
   post_processing:
     prediction: null
     label: null
+    # prediction:
+    #   - name: AsDiscrete
+    #     threshold: 0.5 # OCTA-500
+    # label: 
+    #   - name: AsDiscrete
+    #     threshold: 0.5 # OCTA-500
 Test:
   batch_size: 1
   data:
