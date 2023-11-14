@@ -19,6 +19,7 @@ from utils.enums import Phase
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('--config_file', type=str, required=True)
 parser.add_argument('--epoch', type=str, default="best")
+parser.add_argument('--use_all_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
 args = parser.parse_args()
 epoch_suffix = f"_{args.epoch}"
 
@@ -41,7 +42,7 @@ if not os.path.exists(save_dir):
 
 task: Task = config["General"]["task"]
 
-test_loader = get_dataset(config, Phase.TEST)
+test_loader = get_dataset(config, Phase.TEST, use_all_workers=args.use_all_workers)
 post_transformations_test = get_post_transformation(config, Phase.TEST)
 
 device = torch.device(config["General"].get("device") or "cpu")

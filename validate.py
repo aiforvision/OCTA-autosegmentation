@@ -16,6 +16,7 @@ from utils.enums import Phase
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('--config_file', type=str, required=True)
 parser.add_argument('--epoch', type=str, default='best')
+parser.add_argument('--use_all_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
 args = parser.parse_args()
 
 # Read config file
@@ -31,7 +32,7 @@ config[Phase.VALIDATION]["batch_size"]=1
 
 task: Task = config["General"]["task"]
 
-val_loader = get_dataset(config, Phase.VALIDATION)
+val_loader = get_dataset(config, Phase.VALIDATION, use_all_workers=args.use_all_workers)
 post_transformations_val = get_post_transformation(config, phase=Phase.VALIDATION)
 
 device = torch.device(config["General"].get("device") or "cpu")

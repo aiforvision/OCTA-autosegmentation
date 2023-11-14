@@ -37,11 +37,11 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
     visualizer = Visualizer(config, args.start_epoch>0, epoch=args.epoch)
 
 
-    train_loader = get_dataset(config, Phase.TRAIN)
+    train_loader = get_dataset(config, Phase.TRAIN, use_all_workers=args.use_all_workers)
     post_transformations_train = get_post_transformation(config, Phase.TRAIN)
 
     if Phase.VALIDATION in config:
-        val_loader = get_dataset(config, Phase.VALIDATION)
+        val_loader = get_dataset(config, Phase.VALIDATION, use_all_workers=args.use_all_workers)
         post_transformations_val = get_post_transformation(config, Phase.VALIDATION)
     else:
         val_loader = None
