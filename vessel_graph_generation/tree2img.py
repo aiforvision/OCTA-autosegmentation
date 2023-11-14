@@ -24,12 +24,12 @@ def rasterize_forest(forest: list[dict],
 
     Parameters:
     -----------
-        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'.
+        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'. Position coordinates must within [0,1]. Radius is given in [mm].
         - image_resolution: Dimensions of the final 2D image
         - MIP_axis: Axis along which to take the maximum intensity projection. Default is the z dimension
-        - radius_list: A list to collect all edge radii. Default is None
-        - min_radius: All edges with radius smaller than this will not be included in the grayscale image
-        - max_radius: All edges with radius larger than this will not be included in the grayscale image
+        - radius_list: A list to collect all edge radii for later analysis. Default is None. 
+        - min_radius: All edges with radius smaller than this will not be included in the grayscale image. Radius is given in [mm].
+        - max_radius: All edges with radius larger than this will not be included in the grayscale image. Radius is given in [mm].
         - max_dropout_prob: Maximum probablity with which an edge and its decendents are dropped. 
                             The probabily is sampled from :math:`p = P**10, P ~ Uniform(0,max_dropout_prob)`
         - blackdict: A dictionary containing all parent nodes that were removed in the paired image.
@@ -117,9 +117,9 @@ def getCrossSlice(p1: tuple[int], p2: tuple[int], radius: int, voxel_size: float
     Computes relevant indices in an image tensor that contain the line from p1 to p2 with the given radius.
     
     Paramters:
-        - p1: 3D point in simulation space
-        - p2: 3D point in simulation space
-        - radius: radius of line in simulation space scale
+        - p1: 3D point in simulation space. Position coordinates must within [0,1].
+        - p2: 3D point in simulation space. Position coordinates must within [0,1].
+        - radius: radius of line in simulation space scale. Radius is given in [mm].
         - voxel_size: The voxel size of the rendered image w.r.t. the simulation space
         - image_dim: shape of image tensor in voxels
         - mode: Type of indexing strategy that being used. 'tube' is more precise and better for long lines. 'cuboid' is faster to compute and better for short lines
@@ -185,12 +185,12 @@ def voxelize_forest(forest: dict,
 
     Parameters:
     -----------
-        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'. The coordinates are expected to be within 0-1. If you normalize your coordinates make sure to scale the radius by the same factor.
+        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'. Position coordinates must within [0,1]. Radius is given in [mm].
         - volume_dimensions: Dimensions of the final 3D volume
         - MIP_axis: Axis along which to take the maximum intensity projection. Default is the z dimension
-        - radius_list: A list to collect all edge radii. Default is None
-        - min_radius: All edges with radius smaller than this will not be included in the grayscale image
-        - max_radius: All edges with radius larger than this will not be included in the grayscale image
+        - radius_list: A list to collect all edge radii for later analysis. Default is None
+        - min_radius: All edges with radius smaller than this will not be included in the grayscale image. Radius is given in [mm].
+        - max_radius: All edges with radius larger than this will not be included in the grayscale image. Radius is given in [mm].
         - max_dropout_prob: Maximum probablity with which an edge and its decendents are dropped. 
                             The probabily is sampled from :math:`p = P**10, P ~ Uniform(0,max_dropout_prob)`
         - blackdict: A dictionary containing all parent nodes that were removed in the paired image.
