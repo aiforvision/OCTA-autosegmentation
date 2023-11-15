@@ -22,7 +22,7 @@ group = Group()
 parser = argparse.ArgumentParser(description='')
 parser.add_argument('--config_file', type=str, required=True)
 parser.add_argument('--epoch', type=str, default='best')
-parser.add_argument('--use_all_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
+parser.add_argument('--num_workers', type=int, default=None, help="Number of cpu cores used for dataloading. By, use half of the available cores.")
 args = parser.parse_args()
 
 # Read config file
@@ -38,7 +38,7 @@ config[Phase.VALIDATION]["batch_size"]=1
 
 with Live(group, refresh_per_second=10):
     with DynamicDisplay(group, Spinner("bouncingBall", text="Loading validation data...")):
-        val_loader = get_dataset(config, Phase.VALIDATION, use_all_workers=args.use_all_workers)
+        val_loader = get_dataset(config, Phase.VALIDATION, num_workers=args.num_workers)
         post_transformations_val = get_post_transformation(config, phase=Phase.VALIDATION)
         init_mini_batch = next(iter(val_loader))
 

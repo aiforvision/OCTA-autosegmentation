@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(description='')
 parser.add_argument('--config_file', type=str, required=True)
 parser.add_argument('--epoch', type=str, default="best")
 parser.add_argument('--num_samples', type=int, default=9999999)
-parser.add_argument('--use_all_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
+parser.add_argument('--num_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
 args = parser.parse_args()
 epoch_suffix = f"_{args.epoch}"
 assert args.num_samples>0
@@ -50,7 +50,7 @@ scaler = torch.cuda.amp.GradScaler(enabled=False)
 
 with Live(group, refresh_per_second=10):
     with DynamicDisplay(group, Spinner("bouncingBall", text="Loading test data...")):
-        test_loader = get_dataset(config, Phase.TEST, use_all_workers=args.use_all_workers)
+        test_loader = get_dataset(config, Phase.TEST, num_workers=args.num_workers)
         post_transformations_test = get_post_transformation(config, Phase.TEST)
         test_mini_batch = next(iter(test_loader))
         input_key = [k for k in test_mini_batch.keys() if not k.endswith("_path")][0]

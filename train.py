@@ -43,11 +43,11 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
     visualizer = Visualizer(config, args.start_epoch>0, epoch=args.epoch)
 
 
-    train_loader = get_dataset(config, Phase.TRAIN, use_all_workers=args.use_all_workers)
+    train_loader = get_dataset(config, Phase.TRAIN, num_workers=args.num_workers)
     post_transformations_train = get_post_transformation(config, Phase.TRAIN)
 
     if Phase.VALIDATION in config:
-        val_loader = get_dataset(config, Phase.VALIDATION, use_all_workers=args.use_all_workers)
+        val_loader = get_dataset(config, Phase.VALIDATION, num_workers=args.num_workers)
         post_transformations_val = get_post_transformation(config, Phase.VALIDATION)
     else:
         val_loader = None
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     parser.add_argument('--epoch', type=str, default='latest')
     parser.add_argument('--split', type=str, default='')
     parser.add_argument('--save_latest', type=bool, default=True, help="If true, save a checkpoint and visuals after each epoch under the tag 'latest'.")
-    parser.add_argument('--use_all_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
+    parser.add_argument('--num_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
     args = parser.parse_args()
 
     # Read config file
