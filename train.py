@@ -123,7 +123,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             if val_loader is not None and (epoch + 1) % val_interval == 0:
                 model.eval()
                 val_loss = 0
-                progress.add_task("Validation Batch", total=min(len(val_loader),40), start=False)
+                progress.add_task("Validation Batch", total=min(len(val_loader),40))
                 with torch.no_grad():
                     step = 0
                     for val_mini_batch in val_loader:
@@ -139,7 +139,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                                 epoch_metrics["loss"][f"val_{loss_name}"] = loss.item()
                         main_loss = list(losses.keys())[0]
                         val_loss += losses[main_loss].item()
-                        progress.update(task_id=1, advance=1, description=f"val {main_loss}: {losses[main_loss].item():.4f}")
+                        progress.update(task_id=2, advance=1, description=f"val {main_loss}: {losses[main_loss].item():.4f}")
                         if step >= 40:
                             break
                     
@@ -161,7 +161,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                                 outputs,
                                 suffix="val_latest"
                             )
-                progress.remove_task(1)
+                progress.remove_task(2)
             
             if (epoch + 1) % save_interval == 0:
                 copyfile(train_sample_path, train_sample_path.replace("latest", str(epoch+1)))
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     parser.add_argument('--epoch', type=str, default='latest')
     parser.add_argument('--split', type=str, default='')
     parser.add_argument('--save_latest', type=bool, default=True, help="If true, save a checkpoint and visuals after each epoch under the tag 'latest'.")
-    parser.add_argument('--num_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
+    parser.add_argument('--num_workers', type=int, default=None, help="If true, use all cpu cores for dataloading. If false, only use half.")
     args = parser.parse_args()
 
     # Read config file

@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(description='')
 parser.add_argument('--config_file', type=str, required=True)
 parser.add_argument('--epoch', type=str, default="best")
 parser.add_argument('--num_samples', type=int, default=9999999)
-parser.add_argument('--num_workers', type=bool, default=False, help="If true, use all cpu cores for dataloading. If false, only use half.")
+parser.add_argument('--num_workers', type=int, default=None, help="Number of cpu cores used for dataloading. By, use half of the available cores.")
 args = parser.parse_args()
 epoch_suffix = f"_{args.epoch}"
 assert args.num_samples>0
