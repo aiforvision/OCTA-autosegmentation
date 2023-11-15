@@ -91,16 +91,17 @@ class DCLGAN(BaseModelABC):
         self.loss_name_criterionIdt= config[Phase.TRAIN]["loss_criterionIdt"]
         self.criterionIdt = get_loss_function_by_name(self.loss_name_criterionIdt, config)
 
-        self.loss_name_criterionNCE = config[Phase.TRAIN]["loss_criterionNCE"]
-        self.criterionNCE = []
-        for _ in self.nce_layers:
-            self.criterionNCE.append(get_loss_function_by_name(self.loss_name_criterionNCE, config))
+        if phase==Phase.TRAIN:
+            self.loss_name_criterionNCE = config[Phase.TRAIN]["loss_criterionNCE"]
+            self.criterionNCE = []
+            for _ in self.nce_layers:
+                self.criterionNCE.append(get_loss_function_by_name(self.loss_name_criterionNCE, config))
 
-        # Initialize netF1 and netF2
-        with torch.cuda.amp.autocast():
-            feat_k = self.netG_A(init_mini_batch["image"].to(config["General"]["device"], non_blocking=True), self.nce_layers, encode_only=True)
-            _, sample_ids = self.netF1(feat_k, self.num_patches, None)
-            _, _ = self.netF2(feat_k, self.num_patches, sample_ids)
+            # Initialize netF1 and netF2
+            with torch.cuda.amp.autocast():
+                feat_k = self.netG_A(init_mini_batch["image"].to(config["General"]["device"], non_blocking=True), self.nce_layers, encode_only=True)
+                _, sample_ids = self.netF1(feat_k, self.num_patches, None)
+                _, _ = self.netF2(feat_k, self.num_patches, sample_ids)
 
         super().initialize_model_and_optimizer(init_mini_batch,init_weights,config,args,scaler,phase)
 
@@ -146,7 +147,7 @@ class DCLGAN(BaseModelABC):
         - Dictionary containing the losses and their names
         """
         assert phase==Phase.VALIDATION or phase==Phase.TEST, "This inference function only supports val and test. Use perform_step for training"
-        input = mini_batch["image"]
+        input = mini_batch["image"].to(device=device, non_blocking=True)
         pred = self.forward(input)
         losses = dict()
         outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1,0:1])]}

@@ -110,7 +110,7 @@ class CycleGAN(BaseModelABC):
         - Dictionary containing the losses and their names
         """
         assert phase==Phase.VALIDATION or phase==Phase.TEST, "This inference function only supports val and test. Use perform_step for training"
-        input = mini_batch["image"]
+        input = mini_batch["image"].to(device=device, non_blocking=True)
         pred = self.forward(input)
         losses = dict()
         outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1,0:1])]}

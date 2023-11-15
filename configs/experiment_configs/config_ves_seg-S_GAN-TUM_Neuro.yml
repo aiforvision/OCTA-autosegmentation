@@ -14,9 +14,9 @@ General:
 Train:
   data:
     image:
-      files: /home/linus/Datasets/OCTA/OCTA_synth/dataset_16_02_23/**/*.csv
+      files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/**/*.csv
     label:
-      files: /home/linus/Datasets/OCTA/OCTA_synth/dataset_16_02_23/**/*.csv
+      files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/**/*.csv
     background:
       files: /home/linus/repos/OCTA-seg/datasets/background_images/**/*.png
   epochs: 20

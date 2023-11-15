@@ -70,15 +70,16 @@ class CUTModel(BaseModelABC):
         self.loss_name_criterionGAN = config[Phase.TRAIN]["loss_criterionGAN"]
         self.criterionGAN = get_loss_function_by_name(self.loss_name_criterionGAN, config)
 
-        self.loss_name_criterionNCE = config[Phase.TRAIN]["loss_criterionNCE"]
-        self.criterionNCE = []
-        for _ in self.nce_layers:
-            self.criterionNCE.append(get_loss_function_by_name(self.loss_name_criterionNCE, config))
+        if phase==Phase.TRAIN:
+            self.loss_name_criterionNCE = config[Phase.TRAIN]["loss_criterionNCE"]
+            self.criterionNCE = []
+            for _ in self.nce_layers:
+                self.criterionNCE.append(get_loss_function_by_name(self.loss_name_criterionNCE, config))
 
-        # Initialize netF
-        with torch.cuda.amp.autocast():
-            feat_k = self.netG(init_mini_batch["image"].to(config["General"]["device"], non_blocking=True), self.nce_layers, encode_only=True)
-            feat_k_pool, sample_ids = self.netF(feat_k, self.num_patches, None)
+            # Initialize netF
+            with torch.cuda.amp.autocast():
+                feat_k = self.netG(init_mini_batch["image"].to(config["General"]["device"], non_blocking=True), self.nce_layers, encode_only=True)
+                feat_k_pool, sample_ids = self.netF(feat_k, self.num_patches, None)
 
         super().initialize_model_and_optimizer(init_mini_batch,init_weights,config,args,scaler,phase)
 
@@ -109,7 +110,7 @@ class CUTModel(BaseModelABC):
         - Dictionary containing the losses and their names
         """
         assert phase==Phase.VALIDATION or phase==Phase.TEST, "This inference function only supports val and test. Use perform_step for training"
-        input = mini_batch["image"]
+        input = mini_batch["image"].to(device=device, non_blocking=True)
         pred = self.forward(input)
         losses = dict()
         outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1,0:1])]}

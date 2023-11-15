@@ -75,7 +75,7 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None, use_all_wo
             train_files = [dict(zip(data, t)) for t in zip(*data.values())]
             data_set = Dataset(train_files, transform=transform)
         else:
-            data_set = UnalignedZipDataset(data, transform, phase, config["General"]["inference"])
+            data_set = UnalignedZipDataset(data, transform, phase)
 
     loader = DataLoader(data_set, batch_size=batch_size or config[phase].get("batch_size") or 1, shuffle=phase!=Phase.TEST, num_workers=cpu_count() if use_all_workers else ceil(cpu_count()/2), pin_memory=torch.cuda.is_available())
     return loader

@@ -140,7 +140,7 @@ Test:
   batch_size: 1
   data:
     real_A:
-      files: /home/linus/Datasets/OCTA/OCTA_synth/dataset_16_02_23/*.csv
+      files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/*.csv
     background:
       files: /home/linus/repos/OCTA-seg/datasets/background_images/*.png
   save_comparisons: false
