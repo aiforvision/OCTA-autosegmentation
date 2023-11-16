@@ -64,8 +64,11 @@ class Visualizer():
                         for k,v in record.items():
                             self.tb.add_scalar(k,v,epoch+1)
         else:
-            self.save_dir = os.path.join(config["Output"]["save_dir"], datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
-            os.mkdir(self.save_dir)
+            while True:
+                self.save_dir = os.path.join(config["Output"]["save_dir"], datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+                if not os.path.exists(self.save_dir):
+                    os.mkdir(self.save_dir)
+                    break
             if self.save_to_tensorboard:
                 self.tb = SummaryWriter(log_dir=self.save_dir)
         
