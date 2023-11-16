@@ -91,7 +91,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
         else:
             # Only load necessary network parts for inference
             model_prefix = config["General"].get("inference")
-            model_prefix = model_prefix + "_" if model_prefix else ""
+            model_prefix = model_prefix + "_" if model_prefix else "model_"
             checkpoint = torch.load(model_path.replace('model.pth', f'{model_prefix}model.pth'), map_location=torch.device(config["General"]["device"]))
             config["General"]["inference"] = config["General"].get("inference") or "model"
             # Legacy compatibility

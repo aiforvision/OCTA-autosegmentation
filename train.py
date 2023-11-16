@@ -151,7 +151,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                     if metric_comp > best_metric:
                         best_metric = metric_comp
                         best_metric_epoch = epoch
-                    save_best = True
+                        save_best = True
 
                     if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
                         with DynamicDisplay(group, Spinner("bouncingBall", text="Saving validation visuals...")):
