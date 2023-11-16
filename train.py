@@ -144,7 +144,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                             break
                     
 
-                    epoch_metrics["loss"] = {k: v/step if k.startswith(Phase.VALIDATION.value) else v for k,v in epoch_metrics["loss"].items()}
+                    epoch_metrics["loss"] = {k: v/step if k.startswith("val_") else v for k,v in epoch_metrics["loss"].items()}
                     epoch_metrics["metric"].update(metrics.aggregate_and_reset(prefix=Phase.VALIDATION))
                     val_loss /= step
                     metric_comp =  epoch_metrics["metric"][metrics.get_comp_metric(Phase.VALIDATION)]
