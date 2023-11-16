@@ -75,9 +75,11 @@ class NiceGAN(BaseModelABC):
         prediction: Predicted tensor
         """
         if self.gen2B is not None:
-            return self.gen2B(input)
+            _, _, _, _, real_A_z = self.disA(input)
+            return self.gen2B(real_A_z)
         else:
-            return self.gen2A(input)
+            _, _, _, _, real_B_z = self.disB(input)
+            return self.gen2A(real_B_z)
     
     @overrides(BaseModelABC)
     def inference(self,

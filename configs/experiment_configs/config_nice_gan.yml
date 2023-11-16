@@ -222,6 +222,6 @@ Test:
     prediction: null
     label: null
 Output:
-  save_dir: /home/linus/repos/OCTA-seg/results/niceGAN
+  save_dir: /home/linus/repos/OCTA-seg/results/nice_gan
   save_to_disk: true
   save_to_tensorboard: false
