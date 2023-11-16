@@ -184,7 +184,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
 
                     for model_names in model.optimizer_mapping.values():
                         for model_name in model_names:
-                            visualizer.save_model(getattr(model,model_name), None, epoch+1, f"latest_{model_name}")
+                            checkpoint_path = visualizer.save_model(getattr(model,model_name), None, epoch+1, f"latest_{model_name}")
                             if (epoch + 1) % save_interval == 0:
                                 copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
                             if save_best:
