@@ -3,7 +3,10 @@ import random
 from PIL import Image
 from models.noise_model import NoiseModel
 import numpy as np
+from scipy.ndimage import binary_dilation, gaussian_filter
+from skimage.draw import line
 import csv 
+from typing import Tuple
 
 from monai.transforms import *
 from monai.config import KeysCollection
@@ -28,6 +31,171 @@ class SpeckleBrightnesd(MapTransform):
             img -= img.min()
             data[key] = img
         return data
+    
+class MentenAugmentationd(MapTransform):
+    """
+    Applies Brightness, binomial noise, quantum noise, Vitreous floater artifacts, and motion artifacts as described in:
+
+    Physiology-Based Simulation of the Retinal Vasculature Enables Annotation-Free Segmentation of OCT Angiographs
+    Martin J. Menten, Johannes C. Paetzold, Alina Dima, Bjoern H. Menze, Benjamin Knier & Daniel Rueckert
+    MICCAI 2022
+    https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32
+    """
+    def __init__(self, img_key: str, gt_key: str) -> None:
+        super().__init__(keys=[img_key, gt_key], allow_missing_keys=False)
+        self.img_key = img_key
+        self.gt_key = gt_key
+
+    def __call__(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        img = data[self.img_key]
+        img_shape = img.shape
+        img = img.squeeze().numpy()
+
+        gt = data[self.gt_key]
+        gt_shape = gt.shape
+        gt = gt.squeeze().numpy()
+
+        img, gt = self.augment(img,gt)
+        data[self.img_key] = torch.tensor(img).view(img_shape)
+        data[self.gt_key] = torch.tensor(gt).view(gt_shape)
+        return data
+    
+    def augment(self, img: np.ndarray, gt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Parameters:
+        -----------
+        - img: Numpy array of 2d grayscale image
+        - gt: Numpy array of high resolution grayscale label
+        
+        Returns:
+        --------
+        - img: Augmented numpy array of 2d grayscale image
+        - gt: Adjusted numpy array of high resolution grayscale label
+        """
+        # Scale brightness
+        img = np.clip(img * 0.8, 0.0, 1.0)
+
+        # Vessel noise
+        vessel_noise_scaling = 0.5
+        vessel_noise_blur = 1.0
+        vessel_noise = np.random.binomial(1, 0.1, size=img.shape)
+        vessel_noise = binary_dilation(vessel_noise, iterations=1).astype(float)
+
+        r = 48
+        for i in range(vessel_noise.shape[0]):
+            for j in range(vessel_noise.shape[1]):
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r - 3:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r - 6:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r - 9:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r - 12:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+
+        vessel_noise = gaussian_filter(vessel_noise, vessel_noise_blur) * vessel_noise_scaling
+
+        # Quantum noise
+        quantum_noise_scale = 0.2
+        quantum_noise = np.random.uniform(0.0, quantum_noise_scale, size=img.shape)
+
+        # Add noth noise sources to image
+        img = np.clip((img + vessel_noise + quantum_noise) / (1.0 + vessel_noise_scaling/1.5), 0.0, 1.0)
+
+        # Vitreous floater artifacts
+        floater_chance = 0.1
+
+        if np.random.uniform() < floater_chance:
+            size_x = img.shape[1]
+            size_y = img.shape[0]
+
+            floater = np.zeros((size_x, size_y))
+
+            starting_x = np.random.randint(0, size_x)
+            starting_y = np.random.randint(0, size_y)
+            current_point = np.array((starting_x, starting_y))
+
+            points = []
+            points.append(current_point)
+
+            floater_opacity = np.random.uniform(0.5, 1.0)
+
+            floater_segments = np.random.randint(10, 20)
+
+            for i in range(floater_segments):
+
+                dx = int(np.random.normal(scale=size_x / 10))
+                dy = int(np.random.normal(scale=size_y / 10))
+                next_point = current_point + (dx, dy)
+
+                rr, cc = line(current_point[0], current_point[1], next_point[0], next_point[1])
+
+                inside_image = np.logical_and.reduce((rr >= 0, rr < size_x, cc >= 0, cc < size_y))
+                rr = rr[inside_image]
+                cc = cc[inside_image]
+                
+                floater[rr, cc] = floater_opacity
+
+                current_point = next_point
+
+            dilations = np.random.randint(10, 30)
+            floater = binary_dilation(floater, iterations=dilations).astype(float)
+            floater = gaussian_filter(floater, 10)
+
+            img = img * (1 - floater)
+
+
+        # Motion and decorrelation artifacts
+        grace_margin = 10
+        max_shear = 5
+        max_stretch = 5
+        max_buckle = 5
+        max_whiteout = 1
+
+        no_h_cuts = np.random.randint(0, 3)
+
+        for h_cut in range(no_h_cuts):
+
+            temp_img = img.copy()
+            temp_gt = gt.copy()
+            artifact = np.random.choice(['shear', 'stretch', 'buckle', 'whiteout'], p=[0.3, 0.3, 0.3, 0.1])
+            position = np.random.randint(grace_margin, temp_img.shape[0] - grace_margin)
+
+            if artifact == 'shear':
+                shear = np.random.randint(0, max_shear + 1)
+                img[:position, :] = temp_img[:position, :]
+                img[position:, :] = np.roll(temp_img[position:, :], shear, axis=1)
+                img[position:, :shear] = 0
+
+                gt[:4*position, :] = temp_gt[:4*position, :]
+                gt[4*position:, :] = np.roll(temp_gt[4*position:, :], 4*shear, axis=1)
+                gt[4*position:, :4*shear] = 0
+
+            elif artifact == 'stretch':
+                stretch = np.random.randint(1, max_stretch + 1)
+                img[:position, :] = temp_img[:position, :]
+                img[position:position + stretch, :] = temp_img[position, :]
+                img[position + stretch:, :] = temp_img[position:-stretch, :]
+
+                gt[:4*position, :] = temp_gt[:4*position, :]
+                gt[4*position:4*position + 4*stretch, :] = temp_gt[4*position, :]
+                gt[4*position + 4*stretch:, :] = temp_gt[4*position:-4*stretch, :]
+
+            elif artifact == 'buckle':
+                buckle = np.random.randint(1, max_buckle + 1)
+                img[:position, :] = temp_img[:position, :]
+                img[position:, :] = temp_img[position-buckle:-buckle, :]
+
+                gt[:4*position, :] = temp_gt[:4*position, :]
+                gt[4*position:, :] = temp_gt[4*position-4*buckle:-4*buckle, :]
+
+            elif artifact == 'whiteout':
+                whiteout = np.random.randint(1, max_whiteout + 1)
+                img[position:position + whiteout, :] = np.random.uniform(0.5, 1.0, size=(whiteout, temp_img.shape[1]))
+
+        return img, gt
 
 class ImageToImageTranslationd(MapTransform):
     """
