@@ -236,6 +236,7 @@ def voxelize_forest(forest: dict,
             continue
         radius_list.append(radius)
 
+        radius*=scale_factor
         current_node = np.array(current_node)*scale_factor
         proximal_node = np.array(proximal_node)*scale_factor
 
