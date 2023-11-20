@@ -201,11 +201,23 @@ class ImageToImageTranslationd(MapTransform):
     """
     Use a pre-trained GAN to transform a synthetic image into the real domain
     """
-    def __init__(self, model_path: str, keys: KeysCollection, allow_missing_keys: bool = False) -> None:
+    def __init__(self, model_path: str|dict[str,str], keys: KeysCollection, model_config: dict = None, allow_missing_keys: bool = False) -> None:
         super().__init__(keys, allow_missing_keys)
-        self.model: torch.nn.Module = MODEL_DICT["resnetGenerator9"]()
-        checkpoint_G = torch.load(model_path)
-        self.model.load_state_dict(checkpoint_G['model'])
+        if model_config is None:
+            self.model: torch.nn.Module = MODEL_DICT["resnetGenerator9"]()
+        else:
+            self.model: torch.nn.Module = MODEL_DICT[model_config.pop("name")](**model_config)
+        if isinstance(model_path, dict):
+            for k,v in model_path.items():
+                checkpoint = torch.load(v)
+                net: torch.nn.Module = getattr(self.model, k)
+                net.load_state_dict(checkpoint["model"])
+                print(f"Loaded network weights {k} from epoch {checkpoint['epoch']}.")
+        else:
+            checkpoint = torch.load(model_path)
+            self.model.load_state_dict(checkpoint['model'])
+            print(f"Loaded network weights from epoch {checkpoint['epoch']}.")
+
 
     def __call__(self, data):
         for key in self.keys:

@@ -232,7 +232,7 @@ class Visualizer():
             f.write("\n")
             f.writelines(self._count_parameters(model))
 
-    def save_model(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int, prefix: str="") -> str:
+    def save_model(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int, config: dict, prefix: str="") -> str:
         if not os.path.exists(os.path.join(self.save_dir, "checkpoints")):
             os.mkdir(os.path.join(self.save_dir, "checkpoints"))
         path = os.path.join(self.save_dir, "checkpoints", f"{prefix}_model.pth")
@@ -240,7 +240,8 @@ class Visualizer():
             {
                 'epoch': epoch,
                 'model': model.state_dict() if model is not None else None,
-                'optimizer': optimizer.state_dict() if optimizer is not None else None
+                'optimizer': optimizer.state_dict() if optimizer is not None else None,
+                'config': config
             },
             path,
         )

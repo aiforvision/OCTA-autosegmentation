@@ -173,7 +173,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             if args.save_latest or save_best or (epoch + 1) % save_interval == 0:
                 with DynamicDisplay(group, Spinner("bouncingBall", text="Saving checkpoints...")):
                     for optimizer_name in model.optimizer_mapping.keys():
-                        checkpoint_path = visualizer.save_model(None, getattr(model,optimizer_name), epoch+1, f"latest_{optimizer_name}")
+                        checkpoint_path = visualizer.save_model(None, getattr(model,optimizer_name), epoch+1, config, f"latest_{optimizer_name}")
                         if (epoch + 1) % save_interval == 0:
                             copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
                         if save_best:
@@ -181,7 +181,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
 
                     for model_names in model.optimizer_mapping.values():
                         for model_name in model_names:
-                            checkpoint_path = visualizer.save_model(getattr(model,model_name), None, epoch+1, f"latest_{model_name}")
+                            checkpoint_path = visualizer.save_model(getattr(model,model_name), None, epoch+1, config, f"latest_{model_name}")
                             if (epoch + 1) % save_interval == 0:
                                 copyfile(checkpoint_path, checkpoint_path.replace("latest", str(epoch+1)))
                             if save_best:

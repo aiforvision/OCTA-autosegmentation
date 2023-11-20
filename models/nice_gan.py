@@ -44,19 +44,19 @@ class NiceGAN(BaseModelABC):
         self.D_optim: torch.optim.Optimizer
         if phase == Phase.TRAIN or inference == "gen2A":
             self.gen2A = MODEL_DICT[gen2A_config.pop("name")](**gen2A_config)
+            self.disB = MODEL_DICT[disB_config.pop("name")](**disB_config)
         if phase == Phase.TRAIN or inference == "gen2B":
             self.gen2B = MODEL_DICT[gen2B_config.pop("name")](**gen2B_config)
-        if phase == Phase.TRAIN:
             self.disA = MODEL_DICT[disA_config.pop("name")](**disA_config)
-            self.disB = MODEL_DICT[disB_config.pop("name")](**disB_config)
 
     @overrides(BaseModelABC)
     def initialize_model_and_optimizer(self, init_mini_batch, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
-        self.loss_name_ad = config[Phase.TRAIN]["loss_ad"]
-        self.ad_loss = get_loss_function_by_name(self.loss_name_ad, config)
+        if phase==Phase.TRAIN or phase==Phase.VALIDATION:
+            self.loss_name_ad = config[Phase.TRAIN]["loss_ad"]
+            self.ad_loss = get_loss_function_by_name(self.loss_name_ad, config)
 
-        self.loss_name_cycle = config[Phase.TRAIN]["loss_cycle"]
-        self.cycle_loss = get_loss_function_by_name(self.loss_name_cycle, config)
+            self.loss_name_cycle = config[Phase.TRAIN]["loss_cycle"]
+            self.cycle_loss = get_loss_function_by_name(self.loss_name_cycle, config)
 
         super().initialize_model_and_optimizer(init_mini_batch,init_weights,config,args,scaler,phase)
 
