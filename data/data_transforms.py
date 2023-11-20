@@ -12,6 +12,7 @@ from monai.transforms import *
 from monai.config import KeysCollection
 from vessel_graph_generation.tree2img import rasterize_forest
 from models.networks import MODEL_DICT
+from utils.enums import Phase
 
 class SpeckleBrightnesd(MapTransform):
     """
@@ -206,7 +207,7 @@ class ImageToImageTranslationd(MapTransform):
         if model_config is None:
             self.model: torch.nn.Module = MODEL_DICT["resnetGenerator9"]()
         else:
-            self.model: torch.nn.Module = MODEL_DICT[model_config.pop("name")](**model_config)
+            self.model: torch.nn.Module = MODEL_DICT[model_config.pop("name")](phase=Phase.TEST, MODEL_DICT=MODEL_DICT,**model_config)
         if isinstance(model_path, dict):
             for k,v in model_path.items():
                 checkpoint = torch.load(v)
