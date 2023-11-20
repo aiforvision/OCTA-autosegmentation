@@ -13,6 +13,7 @@ import math
 from PIL import Image
 from utils.enums import Phase, Task
 from rich.console import Group, RenderableType
+import nibabel as nib
 
 class Visualizer():
     """
@@ -337,8 +338,12 @@ class Visualizer():
 
 def plot_single_image(save_dir:str, input: torch.Tensor, name:str=None):
     if len(input.shape)>2:
-        input = input[0]
-    Image.fromarray((input.squeeze().detach().cpu().numpy()*255).astype(np.uint8)).save(os.path.join(save_dir, '.'.join(name.split('.')[:-1])+".png"))
+        # input = input[0]
+        input = input.squeeze().detach().cpu().numpy()*255
+        nifti = nib.Nifti1Image(input.astype(np.uint8), np.eye(4))
+        nib.save(nifti, os.path.join(save_dir, '.'.join(name.split('.')[:-1])+".nii.gz"))
+    else:
+        Image.fromarray((input.squeeze().detach().cpu().numpy()*255).astype(np.uint8)).save(os.path.join(save_dir, '.'.join(name.split('.')[:-1])+".png"))
     # Image.fromarray((input.squeeze().detach().cpu().numpy()*255).astype(np.uint8)).save(os.path.join(save_dir, name))
 
 def plot_sample(
@@ -362,12 +367,15 @@ def plot_sample(
     input = input / input.max()
     input = (input * 255).astype(np.uint8)
     
+    pred = pred.squeeze().detach().cpu().numpy()
+    pred = (pred * 255).astype(np.uint8)
     if truth is not None:
         truth = truth.squeeze().detach().cpu().numpy()
         truth = (truth * 255).astype(np.uint8)
 
-    pred = pred.squeeze().detach().cpu().numpy()
-    pred = (pred * 255).astype(np.uint8)
+    if len(pred.shape)==3:
+        pred = np.max(pred, axis=-1, keepdims=False)
+        truth = np.max(truth, axis=-1, keepdims=False)
 
     name = path.split("/")[-1]
     n = 2 if truth is None else 3

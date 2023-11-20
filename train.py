@@ -140,9 +140,6 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
                         main_loss = list(losses.keys())[0]
                         val_loss += losses[main_loss].item()
                         progress.update(task_id=2, advance=1, description=f"val {main_loss}: {losses[main_loss].item():.4f}")
-                        if step >= 40:
-                            break
-                    
 
                     epoch_metrics["loss"] = {k: v/step if k.startswith("val_") else v for k,v in epoch_metrics["loss"].items()}
                     epoch_metrics["metric"].update(metrics.aggregate_and_reset(prefix=Phase.VALIDATION))
@@ -165,7 +162,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             
             if (epoch + 1) % save_interval == 0:
                 copyfile(train_sample_path, train_sample_path.replace("latest", str(epoch+1)))
-                if (epoch + 1) % val_interval == 0:
+                if val_loader is not None and (epoch + 1) % val_interval == 0:
                     copyfile(val_sample_path, val_sample_path.replace("latest", str(epoch+1)))
             if save_best:
                 copyfile(train_sample_path, train_sample_path.replace("latest", "best"))

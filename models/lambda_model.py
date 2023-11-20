@@ -38,9 +38,9 @@ class LambdaModel(BaseModelABC):
             inputs, labels = self.at(self.model, inputs, mini_batch["background"].to(device, non_blocking=True), labels)
             mini_batch["image"] = inputs.detach()
         pred = self.model(inputs).squeeze(-1)
-        outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1, 0:1])] }
+        outputs: Output = { "prediction": [post_transformations["prediction"](i) for i in decollate_batch(pred[0:1])] }
         if phase != Phase.TEST:
-            outputs["label"] = [post_transformations["label"](i) for i in decollate_batch(labels[0:1, 0:1])]
+            outputs["label"] = [post_transformations["label"](i) for i in decollate_batch(labels[0:1])]
             losses = { self.loss_name: self.loss_function(y_pred=pred, y=labels) }
         else:
             losses = None

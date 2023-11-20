@@ -201,18 +201,20 @@ def voxelize_forest(forest: dict,
         - 3D grayscale volume of all rendered vessels.
         - backlist dictionary containing all parent nodes that were dropped 
     """
-    MIN_DIM_SIZE=30 # A minimal size of 30 is necessary to consider nodes that accidentally grew outside of the simulation space.
+    MAX_RADIUS = 0.015
+    scale_factor = max(volume_dimensions)
+    # A minimal size is necessary to consider nodes that accidentally grew outside of the simulation space and to render the vessel radius correctly.
+    MIN_DIM_SIZE=math.ceil((1/76)*scale_factor+2*MAX_RADIUS*scale_factor)
     image_dim = np.array([max(MIN_DIM_SIZE,d) for d in volume_dimensions])
-    if radius_list is None:
-        radius_list=[]
-    scale_factor = max(image_dim)
-    pos_correction = (image_dim-np.array(volume_dimensions))//2
+    pos_correction = (image_dim-np.array(volume_dimensions))/2
     no_voxel_x, no_voxel_y, no_voxel_z = image_dim
     voxel_size = 1
     voxel_diag = np.linalg.norm(np.array([1, 1, 1]))
 
     img = np.zeros((no_voxel_x, no_voxel_y, no_voxel_z))
 
+    if radius_list is None:
+        radius_list=[]
     if blackdict is None:
         blackdict = dict()
         p = random()**10 * max_dropout_prob
@@ -237,24 +239,24 @@ def voxelize_forest(forest: dict,
         radius_list.append(radius)
 
         radius*=scale_factor
-        current_node = np.array(current_node)*scale_factor
-        proximal_node = np.array(proximal_node)*scale_factor
+        current_node = np.array(current_node)*scale_factor+pos_correction
+        proximal_node = np.array(proximal_node)*scale_factor+pos_correction
 
         voxel_indices = np.array(getCrossSlice(
-            current_node+pos_correction, proximal_node+pos_correction, radius,voxel_size, image_dim
+            current_node, proximal_node, radius,voxel_size, image_dim
         ))
         if len(voxel_indices) == 0:
             continue
         indices = (voxel_indices+.5) * voxel_size
 
         # Calculate orthogonal projection of each voxel onto segment
-        segment_vector = (current_node+pos_correction) - (proximal_node+pos_correction)
-        voxel_vector = indices - (proximal_node+pos_correction)
+        segment_vector = current_node - proximal_node
+        voxel_vector = indices - proximal_node
         scalar_projection = np.dot(voxel_vector, segment_vector) / np.dot(segment_vector, segment_vector)
         inside_segment = np.logical_and(scalar_projection > 0, scalar_projection < 1)
 
         # If the projection falls onto the segment, add the vessel's contribution to the oxygen map
-        vector_projection = (proximal_node+pos_correction) + np.dot(scalar_projection[:, None], segment_vector[None, :])
+        vector_projection = proximal_node + np.dot(scalar_projection[:, None], segment_vector[None, :])
         dist = np.linalg.norm(indices - vector_projection, axis=1)
 
         inds: list[list] = voxel_indices[inside_segment].astype(np.uint16).transpose().tolist()
@@ -263,15 +265,11 @@ def voxelize_forest(forest: dict,
         img[tuple(inds)] = np.maximum(volume_contribution, img[tuple(inds)])
         # Handle beginning and end
         dist = np.minimum(
-            np.linalg.norm(indices-(current_node+pos_correction), axis=1),
-            np.linalg.norm(indices-(proximal_node+pos_correction), axis=1)
+            np.linalg.norm(indices-current_node, axis=1),
+            np.linalg.norm(indices-proximal_node, axis=1)
         )
         inds = voxel_indices.astype(np.uint16).transpose().tolist()
         img[tuple(inds)] = np.maximum(1-((dist - (radius - voxel_diag/2)) / voxel_diag), img[tuple(inds)])
-    # img[img>0]=1
-    img=img[pos_correction[0]:pos_correction[0]+volume_dimensions[0],
-            pos_correction[1]:pos_correction[1]+volume_dimensions[1],
-            pos_correction[2]:pos_correction[2]+volume_dimensions[2]]
     img = (255*np.clip(img,0,1))
     return img.astype(np.uint16), blackdict
 
