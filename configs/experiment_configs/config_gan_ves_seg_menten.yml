@@ -24,14 +24,14 @@ Train:
   data:
     real_B:
       files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
-      split: /home/linus/Datasets/OCTA/OCTA-500/processed/train_0.txt
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/train_
     real_A:
       files: /home/linus/Datasets/OCTA/OCTA_synth/menten_graphs_scaled/*.csv
     real_A_seg:
       files: /home/linus/Datasets/OCTA/OCTA_synth/menten_graphs_scaled/*.csv
     background:
       files: /home/linus/repos/OCTA-seg/datasets/background_images/*.png
-  epochs: 150
+  epochs: 50
   epochs_decay: 0
   save_interval: 25
   val_interval: 1
@@ -144,10 +144,10 @@ Validation:
   data:
     image:
       files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
-      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
     label:
       files: /home/linus/Datasets/OCTA/OCTA-500/processed/segmentations/*.png
-      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
   data_augmentation:
     - name: LoadImaged
       keys:
@@ -208,7 +208,7 @@ Test:
   data:
     real_B:
       files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
-      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
     real_A:
       files: /home/linus/Datasets/OCTA/OCTA_synth/menten_graphs_scaled/*.csv
     background:
@@ -280,6 +280,6 @@ Test:
         min_size: 160
     label: null
 Output:
-  save_dir: /home/linus/repos/OCTA-seg/results/gan-ves-seg-menten
+  save_dir: /home/linus/repos/OCTA-seg/results/gan_ves_seg_menten
   save_to_disk: true
   save_to_tensorboard: false
