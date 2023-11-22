@@ -12,6 +12,9 @@ then
 elif [ "$1" = "transformation" ]
 then
     python /home/OCTA-seg/test.py --config_file /home/OCTA-seg/docker/trained_models/GAN/config.yml --epoch 150
+elif [ "$1" = "3d_reconstruction" ]
+then
+    python /home/OCTA-seg/test.py --config_file /home/OCTA-seg/docker/trained_models/reconstruction_3d/config.yml --epoch 60
 else
     echo "Mode $1 does not exist. Choose segmentation, generation or translation."
     exit 1

@@ -1,0 +1,84 @@
+General:
+  amp: false
+  device: cpu
+  model:
+    in_channels: 1
+    kernel_size:
+    - 3
+    - 3
+    - 3
+    - 3
+    - 3
+    name: DynUNet
+    out_channels: 44
+    spatial_dims: 2
+    strides:
+    - 1
+    - 2
+    - 2
+    - 2
+    - 1
+    upsample_kernel_size:
+    - 1
+    - 2
+    - 2
+    - 2
+    - 1
+  seed: 396513
+  task: ves-seg
+Output:
+  save_dir: /home/OCTA-seg/docker/trained_models/reconstruction_3d
+  save_interval: 1
+  save_to_disk: true
+  save_to_tensorboard: false
+Test:
+  batch_size: 1
+  data:
+    image:
+      files: /var/segmented/**/*.png
+  data_augmentation:
+  - name: LoadImaged
+    keys:
+      - image
+    image_only: true
+  - image_resolutions:
+    - 1216
+    - 1216
+  - keys:
+    - image
+    maxv: 1
+    minv: 0
+    name: ScaleIntensityd
+  - channel_dim: no_channel
+    keys:
+    - image
+    name: EnsureChannelFirstd
+    strict_check: false
+  - k: 1
+    keys:
+    - image
+    name: Rotate90d
+  - keys:
+    - image
+    name: Flipd
+    spatial_axis: 0
+  - keys:
+    - image
+    name: AsDiscreted
+    threshold: 0.1
+  - dtype: dtype
+    keys:
+    - image
+    name: CastToTyped
+  model_path: /home/OCTA-seg/docker/trained_models/reconstruction_3d/60_reconstruction_3d.pth
+  post_processing:
+    prediction:
+    - name: Activations
+      sigmoid: true
+    - name: AsDiscrete
+      threshold: 0.5
+    - min_size: 16
+      name: RemoveSmallObjects
+    - channel_dim: 0
+      name: AsChannelLast
+  save_dir: /var/reconstructed
