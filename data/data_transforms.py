@@ -218,6 +218,7 @@ class ImageToImageTranslationd(MapTransform):
             checkpoint = torch.load(model_path)
             self.model.load_state_dict(checkpoint['model'])
             print(f"Loaded network weights from epoch {checkpoint['epoch']}.")
+        self.model.eval()
 
 
     def __call__(self, data):
