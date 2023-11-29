@@ -15,7 +15,7 @@ We provide a docker file with a pretrained model to segment 3×3 mm² macular OC
 # Build Docker image. (Only required once)
 docker build . -t octa-seg
 ``` 
-#### 1. To **segment** a set of images replace the placeholders with your directory paths and run:
+#### 1. To **segment** a set of images, replace the placeholders with your directory paths and run:
 ```sh
 docker run -v [DATASET_DIR]:/var/dataset -v [RESULT_DIR]:/var/segmented octa-seg segmentation
 ``` 
@@ -51,8 +51,8 @@ We provide 500 synthetic training samples with labels under [./datasets](./datas
 ### Getting the evaluation datasets 
 
 We use three test datasets:
- - [OCTA-500](https://ieee-dataport.org/open-access/octa-500) (Mingchao Li, Yerui Chen, Songtao Yuan, Qiang Chen, December 23, 2019, "OCTA-500", IEEE Dataport, doi: https://dx.doi.org/10.1109/TMI.2020.2992244. )
- - [ROSE-1](https://imed.nimte.ac.cn/dataofrose.html) (Ma, Yuhui; Hao, Huaying; Xie, Jianyang; Fu, Huazhu; Zhang, Jiong; Yang, Jianlong et al. (2021): ROSE: A Retinal OCT-Angiography Vessel Segmentation Dataset and New Model. In IEEE transactions on medical imaging 40 (3), pp. 928–939. https://doi.org/10.1109/TMI.2020.3042802. )
+ - [OCTA-500](https://ieee-dataport.org/open-access/octa-500) (Mingchao Li, Yerui Chen, Songtao Yuan, Qiang Chen, December 23, 2019, "OCTA-500", IEEE Dataport, doi: https://dx.doi.org/10.1109/TMI.2020.2992244.)
+ - [ROSE-1](https://imed.nimte.ac.cn/dataofrose.html) (Ma, Yuhui; Hao, Huaying; Xie, Jianyang; Fu, Huazhu; Zhang, Jiong; Yang, Jianlong et al. (2021): ROSE: A Retinal OCT-Angiography Vessel Segmentation Dataset and New Model. In IEEE transactions on medical imaging 40 (3), pp. 928–939. https://doi.org/10.1109/TMI.2020.3042802.)
  - [Giarratano <i>et al.</i>](https://datashare.ed.ac.uk/handle/10283/3528) (Giarratano, Ylenia. (2019). Optical Coherence Tomography Angiography retinal scans and segmentations. University of Edinburgh. Medical School. https://doi.org/10.7488/ds/2729. )
 
 
@@ -62,10 +62,16 @@ We use three test datasets:
 > - When training on synthetic data for the dataset by Giarratano <i>et al.</i>, you have to apply random cropping in the training data augmentations of the [config.yml](configs/config_ves_seg-S.yml#L79) file.
 
 ### Getting the pretrained models
-We provide a pre-trained GAN model and segmentation model trained for the OCTA-500 dataset under  `./docker/trained_models`.
+We provide a pretrained GAN model and segmentation model trained for the OCTA-500 dataset under  `./docker/trained_models`.
 
 
-# How to use
+# 🟡 How to use repostiory
+## Examples
+We provide two jupyter notebooks with a step-by-step explanation on how to use this repository.
+1. [example_custom_vessel_simulation.ipynb](./example_custom_vessel_simulation.ipynb) shows how you can customize the vessel simulation to your needs. We create a toy configuration that simulates 12x12 mm² OCTA images.
+2. [example_train_gan-seg_with_new_dataset.ipynb](./example_train_gan-seg_with_new_dataset.ipynb) explains how you can train a new GAN and segmentation model tailored to your own dataset. This will boost segmentation performance notably if your dataset has a different contrast that the OCTA-500 dataset. 
+
+## General info
 Experiments are organized via config.yml files. We provide several predefined config files under `./configs` for the experiments shown in the paper. Please refer to the respective [README](configs/README.md) for more information.
 
 ## GAN training
@@ -83,8 +89,6 @@ Train:
         - name: ImageToImageTranslationd
             model_path: ./results/gan-ves-seg/[FOLDER_NAME]/checkpoints/
 ```
-
-
 
 ## Segmentation training
 To train models for experiments as shown in the paper, you can use the provided config files under `./configs`. Select the required dataset by specifying the input path in the respective config file. After the training has started, a new folder will be created. The folder contains training details, checkpoints, and a 'config.yml' file that you will need for validation and testing.
@@ -119,7 +123,7 @@ url = {https://doi.org/10.48550/arXiv.2306.10941}
 }
 ```
 
-And our [privious work](https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32):
+And our [previous work](https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32):
 ```bib
 @InProceedings{Menten2022,
 author={Menten, Martin J. and Paetzold, Johannes C. and Dima, Alina
