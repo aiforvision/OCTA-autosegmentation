@@ -65,7 +65,7 @@ We use three test datasets:
 We provide a pretrained GAN model and segmentation model trained for the OCTA-500 dataset under  `./docker/trained_models`.
 
 
-# 🟡 How to use repostiory
+# 🟡 How to use repository
 ## Examples
 We provide two jupyter notebooks with a step-by-step explanation on how to use this repository.
 1. [example_custom_vessel_simulation.ipynb](./example_custom_vessel_simulation.ipynb) shows how you can customize the vessel simulation to your needs. We create a toy configuration that simulates 12x12 mm² OCTA images.
