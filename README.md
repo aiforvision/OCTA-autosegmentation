@@ -29,7 +29,8 @@ docker run -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 
 
 #### 3. Generate a **3D reconstruction** of your 2D segmentation map. Results will be given as Nifti file.
-> ⚠️ **_Experimental!_**
+> [!NOTE]
+> This feature is still experimental!
 ```sh
 docker run -v [DATASET_DIR]:/var/segmented [RESULT_DIR]:/var/reconstructed octa-seg generation [N]
 ``` 
@@ -42,7 +43,8 @@ Make sure you have a clean [conda](https://docs.conda.io/en/main/miniconda.html)
  ```sh
 pip install -r requirements.txt
  ```
- > ⚠️ **_NOTE:_** Package `open3d` is currently (Nov 22, 2023) not available for python 3.11 yet
+ > [!IMPORTANT]
+ > Package `open3d` is currently (Nov 22, 2023) not available for python 3.11 yet
 
 
 ### Synthetic Dataset
@@ -56,7 +58,7 @@ We use three test datasets:
  - [Giarratano <i>et al.</i>](https://datashare.ed.ac.uk/handle/10283/3528) (Giarratano, Ylenia. (2019). Optical Coherence Tomography Angiography retinal scans and segmentations. University of Edinburgh. Medical School. https://doi.org/10.7488/ds/2729. )
 
 
-> ⚠️ **_NOTE:_**
+> [!IMPORTANT]
 > - For the OCTA-500 dataset, make sure to select the correct images and not to include the FAZ segmentation.
 > - Each dataset comes with a different level of detail for vessel segmentation. When training on synthetic data, make sure to select the correct min_radius in the repective [config.yml](configs/config_ves_seg-S.yml#L37) for label alignment.
 > - When training on synthetic data for the dataset by Giarratano <i>et al.</i>, you have to apply random cropping in the training data augmentations of the [config.yml](configs/config_ves_seg-S.yml#L79) file.
