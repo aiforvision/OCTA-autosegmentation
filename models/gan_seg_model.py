@@ -25,6 +25,8 @@ class GanSegModel(BaseModelABC):
             "optimizer_G": ["generator"],
             "optimizer_D": ["discriminator"],
             "optimizer_S": ["segmentor"]
+        }, optimizer_configs={
+            "optimizer_S": {"betas": (0.9, 0.999)}
         }, **kwargs)
         self.segmentor: nn.Module = None
         self.generator: nn.Module = None

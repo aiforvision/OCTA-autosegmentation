@@ -21,7 +21,7 @@ def _get_transformation(config, phase: str, dtype=torch.float32) -> Compose:
     Create and return the data transformations for 2D segmentation images the given phase.
     """
     aug_config = config[phase]["data_augmentation"]
-    return Compose(get_data_augmentations(aug_config, dtype))
+    return Compose(get_data_augmentations(aug_config, config["General"]["seed"], dtype))
 
 def get_post_transformation(config: dict, phase: str) -> dict[str, Compose]:
     """
@@ -31,7 +31,7 @@ def get_post_transformation(config: dict, phase: str) -> dict[str, Compose]:
     post_transformations = dict()
     for k,v in aug_config.items():
         try:
-            post_transformations[k] =  Compose(get_data_augmentations(v))
+            post_transformations[k] =  Compose(get_data_augmentations(v, seed=config["General"]["seed"]))
         except Exception as e:
             print("Error: Your provided data augmentations for prediction are invalid.\n")
             raise e

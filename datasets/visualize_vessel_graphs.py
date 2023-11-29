@@ -27,6 +27,7 @@ if __name__ == "__main__":
     parser.add_argument('--save_3d', help="Save 3d volume.", action="store_true")
     parser.add_argument('--mip_axis', help="Axis along which to take the Mean intesity projection. Default is the z-dimension.", type=int, default=2)
     parser.add_argument('--binarize', help="Create a label map by binarizing the image", action="store_true")
+    parser.add_argument('--num_samples', type=int, default=9999999, help="Number of samples to visualize. Default is all.")
     args = parser.parse_args()
 
     resolution = np.array([int(d) for d in args.resolution.split(',')])
@@ -46,6 +47,7 @@ if __name__ == "__main__":
             img_res = resolution
 
     csv_files = natsorted(glob(os.path.join(args.source_dir, "**", "*.csv"), recursive=True))
+    csv_files = csv_files[:args.num_samples]
     assert len(csv_files)>0, f"Your provided source directory {args.source_dir} does not contain any csv files."
     for file_path in tqdm(csv_files, desc="Visualizing images..."):
         name = file_path.split("/")[-1].removesuffix(".csv")

@@ -208,7 +208,7 @@ if __name__ == "__main__":
     parser.add_argument('--epoch', type=str, default='latest')
     parser.add_argument('--split', type=str, default='')
     parser.add_argument('--save_latest', type=bool, default=True, help="If true, save a checkpoint and visuals after each epoch under the tag 'latest'.")
-    parser.add_argument('--num_workers', type=int, default=None, help="If true, use all cpu cores for dataloading. If false, only use half.")
+    parser.add_argument('--num_workers', type=int, default=None, help="Number of cpu cores for dataloading. If not set, use half of available cores.")
     args = parser.parse_args()
 
     # Read config file

@@ -420,7 +420,7 @@ class RandCropOrPadd(MapTransform):
                 data[k] = d
         return data
 
-def get_data_augmentations(aug_config: list[dict], dtype=torch.float32) -> list:
+def get_data_augmentations(aug_config: list[dict], seed: int, dtype=torch.float32) -> list:
     if aug_config is None:
         return []
     augs = []
@@ -438,5 +438,8 @@ def get_data_augmentations(aug_config: list[dict], dtype=torch.float32) -> list:
                 aug_d["dtype"] = types
             else:
                 aug_d["dtype"] = types[0]
-        augs.append(aug(**aug_d))
+        aug_obj = aug(**aug_d)
+        if isinstance(aug_obj, Randomizable):
+            aug_obj.set_random_state(seed=seed)
+        augs.append(aug_obj)
     return augs

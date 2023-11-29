@@ -16,9 +16,10 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
     Takes care of basic functionality, e.g., initialization and performing a training step.
     """
 
-    def __init__(self, optimizer_mapping=None,*args, **kwargs) -> None:
+    def __init__(self, optimizer_mapping=None, optimizer_configs: dict[str, dict]=None, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.optimizer_mapping: dict[str, list[str]] = optimizer_mapping or { "optimizer": [] }
+        self.optimizer_configs = optimizer_configs or dict()
 
     @overrides(ModelInterface)
     def initialize_model_and_optimizer(self, init_mini_batch: dict, init_weights: Callable, config: dict, args, scaler: GradScaler, phase=Phase.TRAIN):
@@ -44,11 +45,12 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
             # Initialize Optimizers
             for optim_name, net_names in self.optimizer_mapping.items():
                 parameters = [self.parameters()] if len(net_names) == 0 else [getattr(self, net_name).parameters() for net_name in net_names]
-                setattr(self,optim_name, torch.optim.Adam(itertools.chain(*parameters),
-                    lr=config[Phase.TRAIN]["lr"],
-                    betas=(0.5, 0.999),
-                    weight_decay=config[Phase.TRAIN].get("weight_decay", 0)
-                ))
+                setattr(self,optim_name, torch.optim.Adam(itertools.chain(*parameters),**{
+                    "lr": config[Phase.TRAIN]["lr"],
+                    "betas": (0.5, 0.999),
+                    "weight_decay": config[Phase.TRAIN].get("weight_decay", 0),
+                    **self.optimizer_configs.get(optim_name, {})
+                }))
 
             # Initialize LR scheduler TODO
             max_epochs = config[Phase.TRAIN]["epochs"]
