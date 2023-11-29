@@ -25,7 +25,9 @@ class Greenhouse():
         self.FAZ_radius = np.random.normal(config['FAZ_radius_bound'][0] / self.param_scale, config['FAZ_radius_bound'][1] / self.param_scale)
         self.rotation_radius: float = config['rotation_radius'] / self.param_scale
         self.FAZ_center: Tuple[float, float] = config['FAZ_center']
-        self.simspace = SimulationSpace(config["SimulationSpace"], self.FAZ_center, self.FAZ_radius)
+        self.nerve_center = np.array(config["nerve_center"]) / self.param_scale
+        self.nerve_radius = np.array(config["nerve_radius"]) / self.param_scale
+        self.simspace = SimulationSpace(config["SimulationSpace"], self.FAZ_center, self.FAZ_radius, nerve_center=self.nerve_center, nerve_radius=self.nerve_radius)
 
         self.init_params_from_config(self.modes[0])
 
@@ -399,13 +401,19 @@ class Greenhouse():
     def save_stats(self, out_dir: str):
         plt.figure(figsize=(6,6))
         oxys = np.array(self.oxy_mesh.get_all_elements())
-        plt.plot(oxys[:,1], 1-oxys[:,0], 'r.')
+        if len(oxys)>0:
+            plt.plot(oxys[:,1], 1-oxys[:,0], 'r.')
+        plt.xlim(0,1)
+        plt.ylim(0,1)
         plt.title('Final Oxygen Sink Distribution')
         plt.savefig(f'{out_dir}/oxy_distribution.png', bbox_inches='tight')
         plt.cla()
 
         co2s = np.array(self.co2_mesh.get_all_elements())
-        plt.plot(co2s[:,1], 1-co2s[:,0], 'b.')
+        if len(co2s)>0:
+            plt.plot(co2s[:,1], 1-co2s[:,0], 'b.')
+        plt.xlim(0,1)
+        plt.ylim(0,1)
         plt.title('Final CO₂ Sink Distribution')
         plt.savefig(f'{out_dir}/co2_distribution.png', bbox_inches='tight')
         plt.cla()

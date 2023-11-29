@@ -12,7 +12,7 @@ import csv
 
 class Forest():
 
-    def __init__(self, config: dict, d_0: float, r_0: float, sim_space: SimulationSpace, arterial=True):
+    def __init__(self, config: dict, d_0: float, r_0: float, sim_space: SimulationSpace, arterial=True, nerve_center: np.ndarray=None, nerve_radius: float=0):
         """
         Initialize a forest of multiple vessel trees.
 
@@ -29,13 +29,13 @@ class Forest():
         self.size_x, self.size_y, self.size_z = self.sim_space.shape
         self.arterial = arterial
         if config['type'] == 'nerve':
-            self._initialize_tree_stumps_from_nerve(config, d_0, r_0)
+            self._initialize_tree_stumps_from_nerve(config, d_0, r_0, nerve_center, nerve_radius)
         elif config['type'] == 'stumps':
             self._initialize_tree_stumps(config, d_0, r_0)
         else:
             raise NotImplementedError(f"The Forest initialization type '{config['type']}' is not implemented. Try 'stump' or 'nerve' instead.")
 
-    def _initialize_tree_stumps_from_nerve(self, config, d_0: float, r_0: float):
+    def _initialize_tree_stumps_from_nerve(self, config, d_0: float, r_0: float, nerve_center: np.ndarray=None, nerve_radius: float=0):
         """
         Initialze the vessel network by placing all tree roots at the same position. By this, we replicate the optical nerve.
         This should only be used if you use a FOV that contains the optical nerve. Otherwise use 'stumps' initialization.
@@ -49,18 +49,15 @@ class Forest():
         N_trees = config['N_trees']
         for tree_counter in range(N_trees):
             tree_name = f'{"Arterial" if self.arterial else "Venous"}Tree{tree_counter}'
-            
-            nerve_center: list = config["nerve_center"]
-            nerve_radius: float = config["nerve_radius"]
 
             # random angle
             alpha = 2 * math.pi * random.random()
             # random radius
             r = nerve_radius * math.sqrt(random.random())
             # calculating coordinates
-            x = r * math.cos(alpha) + nerve_center[0]
-            y = r * math.sin(alpha) + nerve_center[1]
-            z = random.random() / self.sim_space.size_z
+            x = r * math.cos(alpha) + nerve_center[1]
+            y = r * math.sin(alpha) + nerve_center[0]
+            z = random.random() * self.sim_space.size_z
 
             tree_pos = np.array([x,y,z])
             tree = ArterialTree(tree_name, tree_pos, r_0, self.size_x, self.size_y, self.size_z, self)
