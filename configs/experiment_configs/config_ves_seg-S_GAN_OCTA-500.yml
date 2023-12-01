@@ -75,18 +75,9 @@ Train:
         - image
       delete_background: False
     - name: ImageToImageTranslationd
-      # model_path: /home/linus/repos/OCTA-seg/results/gan-ves-seg/20230919_145126/checkpoints/50_G_model.pth
       model_path: /home/linus/repos/OCTA-seg/results/gan-ves-seg/20230921_111231/checkpoints/50_G_model.pth
       keys:
         - image
-    # - name: NoiseModeld
-    #   keys:
-    #     - image
-    #   prob: 0.5
-    #   lambda_delta: 1
-    #   lambda_speckle: 0.5
-    #   lambda_gamma: 0.3
-    #   downsample_factor: 1
     - name: Resized
       keys:
       - image
@@ -119,13 +110,6 @@ Train:
       prob: 1
       range_x: 0.17453292519943295
       padding_mode: zeros
-    # - name: RandCropOrPadd
-    #   keys:
-    #     - image
-    #     - label
-    #   prob: 1
-    #   min_factor: 0.2965
-    #   max_factor: 0.2965
     - name: AsDiscreted
       keys:
       - label
@@ -153,17 +137,9 @@ Validation:
     image:
       files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
       split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
-      # files: /home/linus/Datasets/OCTA/ROSE-1/images/*.png
-      # split: /home/linus/Datasets/OCTA/ROSE-1/val_
-      # files: /home/linus/Datasets/OCTA/Giarratano/original_images/*.png
-      # split: /home/linus/Datasets/OCTA/Giarratano/val_0.txt
     label:
       files: /home/linus/Datasets/OCTA/OCTA-500/processed/segmentations/*.png
       split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
-      # files: /home/linus/Datasets/OCTA/ROSE-1/segmentations/*.png
-      # split: /home/linus/Datasets/OCTA/ROSE-1/val_
-      # files: /home/linus/Datasets/OCTA/Giarratano/segmented_images/*.png
-      # split: /home/linus/Datasets/OCTA/Giarratano/val_0.txt
   data_augmentation:
     - name: LoadImaged
       keys:
@@ -232,7 +208,6 @@ Test:
   data:
     image:
       files: /home/linus/Datasets/OCTA/processed/OCTA-500/images/**/*.png
-      # split: /home/linus/repos/OCTA-seg/datasets/Edinburgh/val_
   save_comparisons: false
   data_augmentation:
     - name: LoadImaged
@@ -283,6 +258,6 @@ Test:
     - name: CastToType
       dtype: uint8
 Output:
-  save_dir: /home/linus/repos/OCTA-seg/results/ves-seg-S_GAN_OCTA-500
+  save_dir: /home/linus/repos/OCTA-seg/results/ves-seg-S_GAN_OCTA-500/25
   save_to_disk: true
   save_to_tensorboard: False

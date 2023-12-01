@@ -71,7 +71,7 @@ Train:
     - name: AddRandomBackgroundNoised
       keys:
         - image
-      delete_background False
+      delete_background: False
     - name: ImageToImageTranslationd
       model_path: /ABSOLUTE/PATH/TO/checkpoints/125_G_model.pth
       keys:
