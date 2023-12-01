@@ -338,6 +338,7 @@ class Visualizer():
         return path
 
 def plot_single_image(save_dir:str, input: torch.Tensor, name:str=None):
+    input=input.squeeze()
     if len(input.shape)>2:
         # input = input[0]
         input = input.squeeze().detach().cpu().numpy()*255
