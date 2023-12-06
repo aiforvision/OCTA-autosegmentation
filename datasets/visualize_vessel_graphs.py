@@ -3,6 +3,10 @@ import csv
 import numpy as np
 import sys
 import os
+import pickle
+import nibabel as nib
+import concurrent.futures
+from multiprocessing import cpu_count
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -23,11 +27,17 @@ if __name__ == "__main__":
     parser.add_argument('--source_dir', type=str, required=True)
     parser.add_argument('--out_dir', type=str, required=True)
     parser.add_argument('--resolution', help="The number of pixels for every dimension of the final image or volume seperated by comma.", type=str, default='1216,1216,16')
-    parser.add_argument('--save_2d', help="Save 2d image.", type=bool, default=True)
+    parser.add_argument('--save_2d', action='store_true', help="Save 2d image.")
+    parser.add_argument('--no_save_2d', action="store_false", dest="save_2d", help="Do not save 2d image.")
     parser.add_argument('--save_3d', help="Save 3d volume.", action="store_true")
+    parser.add_argument('--save_3d_as', choices=[".nii.gz", ".npy"], default=".nii.gz", help="Save 3d volume as nifti file or numpy array. Default is nifti")
     parser.add_argument('--mip_axis', help="Axis along which to take the Mean intesity projection. Default is the z-dimension.", type=int, default=2)
     parser.add_argument('--binarize', help="Create a label map by binarizing the image", action="store_true")
     parser.add_argument('--num_samples', type=int, default=9999999, help="Number of samples to visualize. Default is all.")
+    parser.add_argument('--max_dropout_prob', type=float, default=0, help="Maximum dropout probability for vessel segments to diversify training data. Default is no exclusion of vessels.")
+    parser.add_argument('--ignore_z', action="store_true", default=False, help="Ignore depth dimension for 3D rendering")
+    parser.add_argument('--threads', help="Number of parallel threads. By default all available threads but one are used.", type=int, default=-1)
+    parser.set_defaults(save_2d=True)
     args = parser.parse_args()
 
     resolution = np.array([int(d) for d in args.resolution.split(',')])
@@ -49,7 +59,8 @@ if __name__ == "__main__":
     csv_files = natsorted(glob(os.path.join(args.source_dir, "**", "*.csv"), recursive=True))
     csv_files = csv_files[:args.num_samples]
     assert len(csv_files)>0, f"Your provided source directory {args.source_dir} does not contain any csv files."
-    for file_path in tqdm(csv_files, desc="Visualizing images..."):
+    
+    def render_graph(file_path: str):
         name = file_path.split("/")[-1].removesuffix(".csv")
         f: list[dict] = list()
         with open(file_path, newline='') as csvfile:
@@ -58,13 +69,22 @@ if __name__ == "__main__":
                 f.append(row)
 
         if args.save_3d:
-            vol,_ = voxelize_forest(f, resolution)
+            vol,black_dict = voxelize_forest(f, resolution, max_dropout_prob=args.max_dropout_prob, ignore_z=args.ignore_z)
             if args.binarize:
+                name+="_3d_label"
                 vol[vol<0.1]=0
                 vol[vol>=0.1]=1
-                np.save(os.path.join(args.out_dir, name+"_3d_label.npy"), vol.astype(np.bool_))
+                vol = vol.astype(np.bool_)
             else:
-                np.save(os.path.join(args.out_dir, name+"_3d.npy"), vol.astype(np.bool_))
+                name+="_3d"
+            if args.save_3d_as == ".nii.gz":
+                nifti = nib.Nifti1Image(vol, np.eye(4))
+                nib.save(nifti, os.path.join(args.out_dir, name+".nii.gz"))
+            else:
+                np.save(os.path.join(args.out_dir, name+".npy"), vol.astype(np.bool_))
+            if args.max_dropout_prob>0:
+                with open(os.path.join(args.out_dir, name+"_blackdict.pkl"), 'wb') as file:
+                    pickle.dump(black_dict, file)
         if args.save_2d:
             img, _ = rasterize_forest(f, img_res, args.mip_axis)
             if args.binarize:
@@ -72,3 +92,26 @@ if __name__ == "__main__":
                 Image.fromarray(img.astype(np.uint8)).convert("1").save(os.path.join(args.out_dir, name+"_label.png"))
             else:
                 Image.fromarray(img.astype(np.uint8)).save(os.path.join(args.out_dir, name+".png"))
+            if args.max_dropout_prob>0:
+                with open(os.path.join(args.out_dir, name+"_blackdict.pkl"), 'wb') as file:
+                    pickle.dump(black_dict, file)
+
+    if args.threads == -1:
+        # If no argument is provided, use all available threads but one
+        cpus = cpu_count()
+        threads = min(cpus-1,len(csv_files)) if cpus>1 else 1
+    else:
+        threads=args.threads
+
+    if threads>1:
+        # Multi processing
+        with tqdm(total=len(csv_files), desc="Rendering vessel graphs...") as pbar:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
+                future_dict = {executor.submit(render_graph, csv_files[i]): i for i in range(len(csv_files))}
+                for future in concurrent.futures.as_completed(future_dict):
+                    i = future_dict[future]
+                    pbar.update(1)
+    else:
+        # Single processing
+        for csv_path in tqdm(csv_files, desc="Rendering vessel graphs..."):
+            render_graph(csv_path)

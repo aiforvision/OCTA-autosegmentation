@@ -178,7 +178,8 @@ def voxelize_forest(forest: dict,
                     min_radius=0,
                     max_radius=1,
                     max_dropout_prob=0,
-                    blackdict: dict[str, bool]=None) -> Tuple[np.ndarray, dict[str, bool]]:
+                    blackdict: dict[str, bool]=None,
+                    ignore_z=False) -> Tuple[np.ndarray, dict[str, bool]]:
     """
     Converts the given 3D forest into a 3D (grayscale) volume.
     Antialiased drawing of the tree edges is performed manually.
@@ -241,6 +242,10 @@ def voxelize_forest(forest: dict,
         radius*=scale_factor
         current_node = np.array(current_node)*scale_factor+pos_correction
         proximal_node = np.array(proximal_node)*scale_factor+pos_correction
+
+        if ignore_z:
+            current_node[2]=image_dim[2]//2
+            proximal_node[2]=image_dim[2]//2
 
         voxel_indices = np.array(getCrossSlice(
             current_node, proximal_node, radius,voxel_size, image_dim

@@ -7,6 +7,7 @@ from scipy.ndimage import binary_dilation, gaussian_filter
 from skimage.draw import line
 import csv 
 from typing import Tuple
+import pickle
 
 from monai.transforms import *
 from monai.config import KeysCollection
@@ -241,7 +242,12 @@ class LoadGraphAndFilterByRandomRadiusd(MapTransform):
         self.MIP_axis = MIP_axis
 
     def __call__(self, data):
-        blackdict = None
+        if "blackdict" in data:
+            blackdict_path = data["blackdict"]
+            with open(blackdict_path, mode="rb") as file:
+                blackdict = pickle.load(file)
+        else:
+            blackdict = None
         for i, key in enumerate(self.keys):
             if key not in data and self.allow_missing_keys:
                 continue
@@ -266,6 +272,22 @@ class ToGrayScaled(MapTransform):
         for key in self.keys:
             if not self.allow_missing_keys or key in data:
                 data[key] = torch.tensor(np.array(Image.fromarray(data[key].numpy().astype(np.uint8)).convert("L")).astype(np.float32))
+        return data
+    
+class SelectSlice(MapTransform):
+    """
+    Convert an RGB image into a grayscale image.
+    """
+    def __init__(self, keys: KeysCollection, allow_missing_keys: bool = False, slice_selection: list[int]=None) -> None:
+        super().__init__(keys, allow_missing_keys)
+        if slice_selection:
+            self.slice_selection = tuple([slice(s,e) for s,e in slice_selection])
+
+    def __call__(self, data):
+        if self.slice_selection is not None:
+            for key in self.keys:
+                if not self.allow_missing_keys or key in data:
+                    data[key] = data[key][self.slice_selection]
         return data
 
 class NoiseModeld(MapTransform):
