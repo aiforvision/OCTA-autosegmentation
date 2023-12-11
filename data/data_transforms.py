@@ -276,7 +276,7 @@ class ToGrayScaled(MapTransform):
     
 class SelectSlice(MapTransform):
     """
-    Convert an RGB image into a grayscale image.
+    Select a slice from the given Tensor.
     """
     def __init__(self, keys: KeysCollection, allow_missing_keys: bool = False, slice_selection: list[int]=None) -> None:
         super().__init__(keys, allow_missing_keys)
@@ -289,6 +289,23 @@ class SelectSlice(MapTransform):
                 if not self.allow_missing_keys or key in data:
                     data[key] = data[key][self.slice_selection]
         return data
+    
+class RemoveOuterNoise(Transform):
+    """
+    Remove all components that are not connected to the central plane of the z-axis. Used primarily for 3D reconstruction post-processing.
+    """
+    def __init__(self, z_axis=0) -> None:
+        super().__init__()
+        self.keep_largest_connected_component = KeepLargestConnectedComponent()
+        self.z_axis = z_axis
+
+    def __call__(self, volume: torch.Tensor):
+        volume_tmp = volume.clone().to(dtype=torch.bool, non_blocking=True).unsqueeze(0)
+        volume_tmp[0,volume.shape[self.z_axis]//2].fill_(True)
+        volume_tmp = self.keep_largest_connected_component(volume_tmp, ).squeeze(0)
+        volume = torch.logical_and(volume,volume_tmp)
+        return volume
+
 
 class NoiseModeld(MapTransform):
     """

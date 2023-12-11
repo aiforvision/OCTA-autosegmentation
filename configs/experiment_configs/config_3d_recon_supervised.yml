@@ -110,11 +110,10 @@ Test:
     image:
       files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/*.csv
   data_augmentation:
-    - name: LoadGraphAndFilterByRandomRadiusd
+    - name: LoadImaged
       keys:
         - image
-      image_resolutions:
-        - [1216,1216]
+      image_only: true
     - name: ScaleIntensityd
       keys:
       - image
@@ -136,7 +135,6 @@ Test:
     - name: AsDiscreted
       keys:
       - image
-      - label
       threshold: 0.1
     - name: CastToTyped
       keys:
