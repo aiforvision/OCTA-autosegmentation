@@ -13,7 +13,7 @@ then
     shift
     python /home/OCTA-seg/generate_vessel_graph.py --config_file /home/OCTA-seg/docker/vessel_graph_gen_docker_config.yml --num_samples $num_samples \
     && python /home/OCTA-seg/test.py --config_file /home/OCTA-seg/docker/trained_models/GAN/config.yml --epoch 150 \
-    && python /home/OCTA-seg/datasets/visualize_vessel_graphs.py --source_dir /var/generation/vessel_graphs --out_dir /var/generation/labels --resolution "1216,1216,16" --binarize "$@" && \
+    && python /home/OCTA-seg/visualize_vessel_graphs.py --source_dir /var/generation/vessel_graphs --out_dir /var/generation/labels --resolution "1216,1216,16" --binarize "$@" && \
     chmod -R 777 /var/generation
 elif [ "$mode" = "transformation" ]
 then
@@ -21,7 +21,7 @@ then
     chmod -R 777 /var/generation/images
 elif [ "$mode" = "visualization" ]
 then
-    python /home/OCTA-seg/datasets/visualize_vessel_graphs.py --source_dir /var/vessel_graphs --out_dir /var/labels --resolution "1216,1216,16" --binarize "$@" && \
+    python /home/OCTA-seg/visualize_vessel_graphs.py --source_dir /var/vessel_graphs --out_dir /var/labels --resolution "1216,1216,16" --binarize "$@" && \
     chmod -R 777 /var/labels
 elif [ "$mode" = "3d_reconstruction" ]
 then

@@ -7,6 +7,11 @@ import pickle
 import nibabel as nib
 import concurrent.futures
 from multiprocessing import cpu_count
+from rich.console import  Group, Console
+from rich.live import Live
+from rich.progress import Progress, TimeElapsedColumn
+from utils.visualizer import DynamicDisplay
+group = Group()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
@@ -14,7 +19,6 @@ sys.path.append(os.path.dirname(SCRIPT_DIR))
 from glob import glob
 from natsort import natsorted
 from PIL import Image
-from tqdm import tqdm
 from vessel_graph_generation.tree2img import rasterize_forest, voxelize_forest
 
 """
@@ -103,15 +107,19 @@ if __name__ == "__main__":
     else:
         threads=args.threads
 
-    if threads>1:
-        # Multi processing
-        with tqdm(total=len(csv_files), desc="Rendering vessel graphs...") as pbar:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
-                future_dict = {executor.submit(render_graph, csv_files[i]): i for i in range(len(csv_files))}
-                for future in concurrent.futures.as_completed(future_dict):
-                    i = future_dict[future]
-                    pbar.update(1)
-    else:
-        # Single processing
-        for csv_path in tqdm(csv_files, desc="Rendering vessel graphs..."):
-            render_graph(csv_path)
+    with Live(group, console=Console(force_terminal=True), refresh_per_second=10):
+        progress = Progress(*Progress.get_default_columns(), TimeElapsedColumn())
+        progress.add_task(f"Rendering {len(csv_files)} vessel graphs:", total=len(csv_files))
+        with DynamicDisplay(group, progress):
+            if threads>1:
+                # Multi processing
+                    with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
+                        future_dict = {executor.submit(render_graph, csv_files[i]): i for i in range(len(csv_files))}
+                        for future in concurrent.futures.as_completed(future_dict):
+                            i = future_dict[future]
+                            progress.advance(task_id=0)
+            else:
+                # Single processing
+                for csv_path in csv_files:
+                    render_graph(csv_path)
+                    progress.advance(task_id=0)

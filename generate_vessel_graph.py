@@ -7,11 +7,15 @@ import vessel_graph_generation.tree2img as tree2img
 import numpy as np
 import nibabel as nib
 import os
-from tqdm import tqdm
 import yaml
 from multiprocessing import cpu_count
 import concurrent.futures
 import warnings
+from rich.console import  Group, Console
+from rich.live import Live
+from rich.progress import Progress, TimeElapsedColumn
+from utils.visualizer import DynamicDisplay
+group = Group()
 
 
 def main(config):
@@ -105,15 +109,20 @@ if __name__ == '__main__':
         threads = min(cpus-1 if cpus>1 else 1,args.num_samples)
     else:
         threads=args.threads
-    if threads>1:
-        # Multi processing
-        with tqdm(total=args.num_samples, desc="Generating vessel graphs...") as pbar:
-            with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
-                future_dict = {executor.submit(main, config): i for i in range(args.num_samples)}
-                for future in concurrent.futures.as_completed(future_dict):
-                    i = future_dict[future]
-                    pbar.update(1)
-    else:
-        # Single processing
-        for i in tqdm(range(args.num_samples), desc="Generating vessel graphs..."):
-            main(config)
+
+    with Live(group, console=Console(force_terminal=True), refresh_per_second=10):
+        progress = Progress(*Progress.get_default_columns(), TimeElapsedColumn())
+        progress.add_task(f"Generating {args.num_samples} vessel graphs:", total=args.num_samples)
+        with DynamicDisplay(group, progress):
+            if threads>1:
+                # Multi processing
+                with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
+                    future_dict = {executor.submit(main, config): i for i in range(args.num_samples)}
+                    for future in concurrent.futures.as_completed(future_dict):
+                        i = future_dict[future]
+                        progress.advance(task_id=0)
+            else:
+                # Single processing
+                for i in range(args.num_samples):
+                    main(config)
+                    progress.advance(task_id=0)
