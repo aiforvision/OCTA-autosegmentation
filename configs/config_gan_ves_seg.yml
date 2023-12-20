@@ -216,4 +216,4 @@ Test:
 Output:
   save_dir: ./results/gan-ves-seg # /PATH/TO/YOUR/RESULTS/FOLDER
   save_to_disk: true
-  save_to_tensorboard: true
+  save_to_tensorboard: false

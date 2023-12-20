@@ -285,4 +285,4 @@ Test:
 Output:
   save_dir: /home/linus/repos/OCTA-seg/results/ves-seg-S_GAN
   save_to_disk: true
-  save_to_tensorboard: true
+  save_to_tensorboard: false

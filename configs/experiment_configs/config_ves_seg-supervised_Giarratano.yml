@@ -238,5 +238,5 @@ Test:
 Output:
   save_dir: ./results/ves-seg-supervised
   save_to_disk: true
-  save_to_tensorboard: true
+  save_to_tensorboard: false
   save_interval: 1

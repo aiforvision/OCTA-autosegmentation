@@ -38,7 +38,7 @@ General:
 Output:
   save_dir: /home/OCTA-seg/docker/trained_models/GAN
   save_to_disk: true
-  save_to_tensorboard: true
+  save_to_tensorboard: false
 Test:
   batch_size: 1
   data:

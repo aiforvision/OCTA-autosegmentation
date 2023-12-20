@@ -244,4 +244,4 @@ Test:
 Output:
   save_dir: ./ves-seg-S_Menten
   save_to_disk: true
-  save_to_tensorboard: true
+  save_to_tensorboard: false
