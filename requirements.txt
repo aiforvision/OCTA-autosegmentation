@@ -19,7 +19,7 @@ rich
 #####################
 anytree
 nibabel
-# Not available for python 3.11 yet (09.05.23)
+# Not available for python 3.11 yet (Dec 20, 2023)
 open3d
 
 # OPTIONAL: If you want to use bayesOpt:

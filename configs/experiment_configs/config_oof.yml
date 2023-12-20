@@ -102,10 +102,10 @@ Test:
   data:
     image:
       # files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png # Giarratano
-      # split: /ABSOLUTE/PATH/TO/Giarratano/test_0.txt
+      # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
 
       # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png # ROSE-1
-      # split: /ABSOLUTE/PATH/TO/ROSE-1/test_0.txt
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
 
       files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/**/*.png # OCTA-500
       split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt

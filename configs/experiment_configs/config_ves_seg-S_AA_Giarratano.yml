@@ -180,11 +180,11 @@ Test:
   data:
     image:
       # files: /home/lkreitner/OCTA-seg/datasets/OCTA-500/images/**/*.png
-      # spilt: /home/lkreitner/OCTA-seg/datasets/OCTA-500/test_0.txt
+      # spilt: /home/lkreitner/OCTA-seg/datasets/OCTA-500/val_0.txt
       # files: /home/lkreitner/OCTA-seg/datasets/ROSE-1/images/**/*.png
-      # spilt: /home/lkreitner/OCTA-seg/datasets/ROSE-1/test_0.txt
+      # spilt: /home/lkreitner/OCTA-seg/datasets/ROSE-1/val_0.txt
       files: /home/linus/Datasets/OCTA/Giarratano/original_images/*.png
-      split: /home/linus/Datasets/OCTA/Giarratano/test_0.txt
+      split: /home/linus/Datasets/OCTA/Giarratano/val_0.txt
   save_comparisons: false
   data_augmentation:
     - name: LoadImaged

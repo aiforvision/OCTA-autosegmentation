@@ -227,9 +227,9 @@ Test:
       files: /ABSOLUTE/PATH/TO/OCTA-500/images/**/*.png
       # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png
       # files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png
-      split: /ABSOLUTE/PATH/TO/OCTA-500/test_0.txt
-      # split: /ABSOLUTE/PATH/TO/ROSE-1/test_0.txt
-      # split: /ABSOLUTE/PATH/TO/Giarratano/test_0.txt
+      split: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
+      # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
   save_comparisons: false
   data_augmentation:
     - name: LoadImaged
