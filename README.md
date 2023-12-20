@@ -1,16 +1,13 @@
-# Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs
-This is the repository for the paper [Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs (2023)](https://arxiv.org/abs/2306.10941)</b>.
+# Synthetic optical coherence tomography angiographs for detailed retinal vessel segmentation without human annotations
+This is the repository for the paper [Synthetic optical coherence tomography angiographs for detailed retinal vessel segmentation without human annotations (2023)](https://arxiv.org/abs/2306.10941)</b>.
 
 <div style="text-align:center">
-    <img src="images/abstract_v4_1.svg">
+    <img src="images/abstract.svg">
 </div>
 
 
 ## Abstract
-Optical coherence tomography angiography (OCTA) is a non-invasive imaging modality that can acquire high-resolution volumes of the retinal vasculature and aid the diagnosis of ocular, neurological and cardiac diseases. Segmentation of the visible blood vessels is a common first step when extracting quantitative biomarkers from these images. Classical segmentation algorithms based on thresholding are strongly affected by image artifacts and limited signal-to-noise ratio. The use of modern, deep learning-based segmentation methods has been inhibited by a lack of large datasets with detailed annotations of the blood vessels. To address this issue, recent work has employed transfer learning, where a segmentation network is trained on synthetic OCTA images and is then applied to real data.
-However, the previously proposed simulation models are incapable of faithfully modeling the retinal vasculature and do not provide effective domain adaptation. Because of this, current methods are not able to fully segment the retinal vasculature, in particular the smallest capillaries.
-In this work, we present a lightweight simulation of the retinal vascular network based on space colonization for faster and more realistic OCTA synthesis. Moreover, we introduce three contrast adaptation pipelines to decrease the domain gap between real and artificial images. We demonstrate the superior performance of our approach in extensive quantitative and qualitative experiments on three public datasets that compare our method to traditional computer vision algorithms and supervised training using human annotations.
-Finally, we make our entire pipeline publicly available, including the source code, pretrained models, and a large dataset of synthetic OCTA images.
+ Optical coherence tomography angiography(OCTA) is a non-invasive imaging modality that can acquire high-resolution volumes of the retinal vasculature and aid the diagnosis of ocular, neurological and cardiac diseases. Segmenting the visible blood vessels is a common first step when extracting quantitative biomarkers from these images. Classical segmentation algorithms based on thresholding are strongly affected by image artifacts and limited signal-to-noise ratio. The use of modern, deep learning-based segmentation methods has been inhibited by a lack of large datasets with detailed annotations of the blood vessels. To address this issue, recent work has employed transfer learning, where a segmentation network is trained on synthetic OCTA images and is then applied to real data. However, the previously proposed simulations fail to faithfully model the retinal vasculature and do not provide effective domain adaptation. Because of this, current methods are unable to fully segment the retinal vasculature, in particular the smallest capillaries. In this work, we present a lightweight simulation of the retinal vascular network based on space colonization for faster and more realistic OCTA synthesis. We then introduce three contrast adaptation pipelines to decrease the domain gap between real and artificial images. We demonstrate the superior segmentation performance of our approach in extensive quantitative and qualitative experiments on three public datasets that compare our method to traditional computer vision algorithms and supervised training using human annotations. Finally, we make our entire pipeline publicly available, including the source code, pretrained models, and a large dataset of synthetic OCTA images
 
 # 🔴 TL;DR: Segment my images / Generate synthetic images
 We provide a docker file with a pretrained model to segment 3×3 mm² macular OCTA images:
@@ -18,13 +15,26 @@ We provide a docker file with a pretrained model to segment 3×3 mm² macular OC
 # Build Docker image. (Only required once)
 docker build . -t octa-seg
 ``` 
-To **segment** a set of images replace the placeholders with your directory paths and run:
+#### 1. To **segment** a set of images, replace the placeholders with your directory paths and run:
+> [!NOTE]
+> If you are using Windows and the following commands fail, make sure to change the end of line sequence of the `./docker/dockershell.sh` file from `CRLF` to `LF` (unix style).
 ```sh
 docker run -v [DATASET_DIR]:/var/dataset -v [RESULT_DIR]:/var/segmented octa-seg segmentation
 ``` 
-**We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To **generate** _N_ more samples, run:
+#### 2. **We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To **generate** _N_ more samples, run:
 ```sh
 docker run -v [RESULT_DIR]:/var/generation octa-seg generation [N]
+``` 
+
+---
+
+
+
+#### 3. Generate a **3D reconstruction** of your 2D segmentation map. Results will be given as Nifti file.
+> [!NOTE]
+> This feature is still experimental!
+```sh
+docker run -v [DATASET_DIR]:/var/segmented [RESULT_DIR]:/var/reconstructed octa-seg generation [N]
 ``` 
 
 # 🔵 Manual Installation
@@ -35,6 +45,8 @@ Make sure you have a clean [conda](https://docs.conda.io/en/main/miniconda.html)
  ```sh
 pip install -r requirements.txt
  ```
+ > [!IMPORTANT]
+ > Package `open3d` is currently (Nov 22, 2023) not available for python 3.11 yet
 
 
 ### Synthetic Dataset
@@ -43,21 +55,27 @@ We provide 500 synthetic training samples with labels under [./datasets](./datas
 ### Getting the evaluation datasets 
 
 We use three test datasets:
- - [OCTA-500](https://ieee-dataport.org/open-access/octa-500) (Mingchao Li, Yerui Chen, Songtao Yuan, Qiang Chen, December 23, 2019, "OCTA-500", IEEE Dataport, doi: https://dx.doi.org/10.1109/TMI.2020.2992244. )
- - [ROSE-1](https://imed.nimte.ac.cn/dataofrose.html) (Ma, Yuhui; Hao, Huaying; Xie, Jianyang; Fu, Huazhu; Zhang, Jiong; Yang, Jianlong et al. (2021): ROSE: A Retinal OCT-Angiography Vessel Segmentation Dataset and New Model. In IEEE transactions on medical imaging 40 (3), pp. 928–939. https://doi.org/10.1109/TMI.2020.3042802. )
+ - [OCTA-500](https://ieee-dataport.org/open-access/octa-500) (Mingchao Li, Yerui Chen, Songtao Yuan, Qiang Chen, December 23, 2019, "OCTA-500", IEEE Dataport, doi: https://dx.doi.org/10.1109/TMI.2020.2992244.)
+ - [ROSE-1](https://imed.nimte.ac.cn/dataofrose.html) (Ma, Yuhui; Hao, Huaying; Xie, Jianyang; Fu, Huazhu; Zhang, Jiong; Yang, Jianlong et al. (2021): ROSE: A Retinal OCT-Angiography Vessel Segmentation Dataset and New Model. In IEEE transactions on medical imaging 40 (3), pp. 928–939. https://doi.org/10.1109/TMI.2020.3042802.)
  - [Giarratano <i>et al.</i>](https://datashare.ed.ac.uk/handle/10283/3528) (Giarratano, Ylenia. (2019). Optical Coherence Tomography Angiography retinal scans and segmentations. University of Edinburgh. Medical School. https://doi.org/10.7488/ds/2729. )
 
 
-> ⚠️ **_NOTE:_**
+> [!IMPORTANT]
 > - For the OCTA-500 dataset, make sure to select the correct images and not to include the FAZ segmentation.
 > - Each dataset comes with a different level of detail for vessel segmentation. When training on synthetic data, make sure to select the correct min_radius in the repective [config.yml](configs/config_ves_seg-S.yml#L37) for label alignment.
 > - When training on synthetic data for the dataset by Giarratano <i>et al.</i>, you have to apply random cropping in the training data augmentations of the [config.yml](configs/config_ves_seg-S.yml#L79) file.
 
 ### Getting the pretrained models
-We provide a pre-trained GAN model and segmentation model trained for the OCTA-500 dataset under  `./docker/trained_models`.
+We provide a pretrained GAN model and segmentation model trained for the OCTA-500 dataset under  `./docker/trained_models`.
 
 
-# How to use
+# 🟡 How to use repository
+## Examples
+We provide two jupyter notebooks with a step-by-step explanation on how to use this repository.
+1. [example_custom_vessel_simulation.ipynb](./example_custom_vessel_simulation.ipynb) shows how you can customize the vessel simulation to your needs. We create a toy configuration that simulates 12x12 mm² OCTA images.
+2. [example_train_gan-seg_with_new_dataset.ipynb](./example_train_gan-seg_with_new_dataset.ipynb) explains how you can train a new GAN and segmentation model tailored to your own dataset. This will boost segmentation performance notably if your dataset has a different contrast that the OCTA-500 dataset. 
+
+## General info
 Experiments are organized via config.yml files. We provide several predefined config files under `./configs` for the experiments shown in the paper. Please refer to the respective [README](configs/README.md) for more information.
 
 ## GAN training
@@ -75,8 +93,6 @@ Train:
         - name: ImageToImageTranslationd
             model_path: ./results/gan-ves-seg/[FOLDER_NAME]/checkpoints/
 ```
-
-
 
 ## Segmentation training
 To train models for experiments as shown in the paper, you can use the provided config files under `./configs`. Select the required dataset by specifying the input path in the respective config file. After the training has started, a new folder will be created. The folder contains training details, checkpoints, and a 'config.yml' file that you will need for validation and testing.
@@ -101,17 +117,17 @@ python test.py --config_file [PATH_TO_CONFIG_FILE] --epoch [EPOCH]
 If you use this code for your research, please cite our [paper (preprint)](https://arxiv.org/abs/2306.10941):
 ```bib
 @misc{Kreitner2023,
-title={Detailed retinal vessel segmentation without human annotations using simulated optical coherence tomography angiographs}, 
+title={Synthetic optical coherence tomography angiographs for detailed retinal vessel segmentation without human annotations}, 
 author={Linus Kreitner and Johannes C. Paetzold and Nikolaus Rauch and Chen Chen and Ahmed M. Hagag and Alaa E. Fayed and Sobha Sivaprasad and Sebastian Rausch and Julian Weichsel and Bjoern H. Menze and Matthias Harders and Benjamin Knier and Daniel Rueckert and Martin J. Menten},
 year={2023},
-eprint={2306.10941},
+eprint={2306.10941}, 
 archivePrefix={arXiv},
 primaryClass={eess.IV},
 url = {https://doi.org/10.48550/arXiv.2306.10941}
 }
 ```
 
-And our [privious work](https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32):
+And our [previous work](https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32):
 ```bib
 @InProceedings{Menten2022,
 author={Menten, Martin J. and Paetzold, Johannes C. and Dima, Alina

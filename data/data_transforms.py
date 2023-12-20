@@ -3,12 +3,17 @@ import random
 from PIL import Image
 from models.noise_model import NoiseModel
 import numpy as np
+from scipy.ndimage import binary_dilation, gaussian_filter
+from skimage.draw import line
 import csv 
+from typing import Tuple
+import pickle
 
 from monai.transforms import *
 from monai.config import KeysCollection
 from vessel_graph_generation.tree2img import rasterize_forest
 from models.networks import MODEL_DICT
+from utils.enums import Phase
 
 class SpeckleBrightnesd(MapTransform):
     """
@@ -28,16 +33,194 @@ class SpeckleBrightnesd(MapTransform):
             img -= img.min()
             data[key] = img
         return data
+    
+class MentenAugmentationd(MapTransform):
+    """
+    Applies Brightness, binomial noise, quantum noise, Vitreous floater artifacts, and motion artifacts as described in:
+
+    Physiology-Based Simulation of the Retinal Vasculature Enables Annotation-Free Segmentation of OCT Angiographs
+    Martin J. Menten, Johannes C. Paetzold, Alina Dima, Bjoern H. Menze, Benjamin Knier & Daniel Rueckert
+    MICCAI 2022
+    https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32
+    """
+    def __init__(self, img_key: str, gt_key: str) -> None:
+        super().__init__(keys=[img_key, gt_key], allow_missing_keys=False)
+        self.img_key = img_key
+        self.gt_key = gt_key
+
+    def __call__(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        img = data[self.img_key]
+        img_shape = img.shape
+        img = img.squeeze().numpy()
+
+        gt = data[self.gt_key]
+        gt_shape = gt.shape
+        gt = gt.squeeze().numpy()
+
+        img, gt = self.augment(img,gt)
+        data[self.img_key] = torch.tensor(img).view(img_shape)
+        data[self.gt_key] = torch.tensor(gt).view(gt_shape)
+        return data
+    
+    def augment(self, img: np.ndarray, gt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Parameters:
+        -----------
+        - img: Numpy array of 2d grayscale image
+        - gt: Numpy array of high resolution grayscale label
+        
+        Returns:
+        --------
+        - img: Augmented numpy array of 2d grayscale image
+        - gt: Adjusted numpy array of high resolution grayscale label
+        """
+        # Scale brightness
+        img = np.clip(img * 0.8, 0.0, 1.0)
+
+        # Vessel noise
+        vessel_noise_scaling = 0.5
+        vessel_noise_blur = 1.0
+        vessel_noise = np.random.binomial(1, 0.1, size=img.shape)
+        vessel_noise = binary_dilation(vessel_noise, iterations=1).astype(float)
+
+        r = 48
+        for i in range(vessel_noise.shape[0]):
+            for j in range(vessel_noise.shape[1]):
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r - 3:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r - 6:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r - 9:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+                if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r - 12:
+                    vessel_noise[i, j] = vessel_noise[i, j] * 0.7
+
+        vessel_noise = gaussian_filter(vessel_noise, vessel_noise_blur) * vessel_noise_scaling
+
+        # Quantum noise
+        quantum_noise_scale = 0.2
+        quantum_noise = np.random.uniform(0.0, quantum_noise_scale, size=img.shape)
+
+        # Add noth noise sources to image
+        img = np.clip((img + vessel_noise + quantum_noise) / (1.0 + vessel_noise_scaling/1.5), 0.0, 1.0)
+
+        # Vitreous floater artifacts
+        floater_chance = 0.1
+
+        if np.random.uniform() < floater_chance:
+            size_x = img.shape[1]
+            size_y = img.shape[0]
+
+            floater = np.zeros((size_x, size_y))
+
+            starting_x = np.random.randint(0, size_x)
+            starting_y = np.random.randint(0, size_y)
+            current_point = np.array((starting_x, starting_y))
+
+            points = []
+            points.append(current_point)
+
+            floater_opacity = np.random.uniform(0.5, 1.0)
+
+            floater_segments = np.random.randint(10, 20)
+
+            for i in range(floater_segments):
+
+                dx = int(np.random.normal(scale=size_x / 10))
+                dy = int(np.random.normal(scale=size_y / 10))
+                next_point = current_point + (dx, dy)
+
+                rr, cc = line(current_point[0], current_point[1], next_point[0], next_point[1])
+
+                inside_image = np.logical_and.reduce((rr >= 0, rr < size_x, cc >= 0, cc < size_y))
+                rr = rr[inside_image]
+                cc = cc[inside_image]
+                
+                floater[rr, cc] = floater_opacity
+
+                current_point = next_point
+
+            dilations = np.random.randint(10, 30)
+            floater = binary_dilation(floater, iterations=dilations).astype(float)
+            floater = gaussian_filter(floater, 10)
+
+            img = img * (1 - floater)
+
+
+        # Motion and decorrelation artifacts
+        grace_margin = 10
+        max_shear = 5
+        max_stretch = 5
+        max_buckle = 5
+        max_whiteout = 1
+
+        no_h_cuts = np.random.randint(0, 3)
+
+        for h_cut in range(no_h_cuts):
+
+            temp_img = img.copy()
+            temp_gt = gt.copy()
+            artifact = np.random.choice(['shear', 'stretch', 'buckle', 'whiteout'], p=[0.3, 0.3, 0.3, 0.1])
+            position = np.random.randint(grace_margin, temp_img.shape[0] - grace_margin)
+
+            if artifact == 'shear':
+                shear = np.random.randint(0, max_shear + 1)
+                img[:position, :] = temp_img[:position, :]
+                img[position:, :] = np.roll(temp_img[position:, :], shear, axis=1)
+                img[position:, :shear] = 0
+
+                gt[:4*position, :] = temp_gt[:4*position, :]
+                gt[4*position:, :] = np.roll(temp_gt[4*position:, :], 4*shear, axis=1)
+                gt[4*position:, :4*shear] = 0
+
+            elif artifact == 'stretch':
+                stretch = np.random.randint(1, max_stretch + 1)
+                img[:position, :] = temp_img[:position, :]
+                img[position:position + stretch, :] = temp_img[position, :]
+                img[position + stretch:, :] = temp_img[position:-stretch, :]
+
+                gt[:4*position, :] = temp_gt[:4*position, :]
+                gt[4*position:4*position + 4*stretch, :] = temp_gt[4*position, :]
+                gt[4*position + 4*stretch:, :] = temp_gt[4*position:-4*stretch, :]
+
+            elif artifact == 'buckle':
+                buckle = np.random.randint(1, max_buckle + 1)
+                img[:position, :] = temp_img[:position, :]
+                img[position:, :] = temp_img[position-buckle:-buckle, :]
+
+                gt[:4*position, :] = temp_gt[:4*position, :]
+                gt[4*position:, :] = temp_gt[4*position-4*buckle:-4*buckle, :]
+
+            elif artifact == 'whiteout':
+                whiteout = np.random.randint(1, max_whiteout + 1)
+                img[position:position + whiteout, :] = np.random.uniform(0.5, 1.0, size=(whiteout, temp_img.shape[1]))
+
+        return img, gt
 
 class ImageToImageTranslationd(MapTransform):
     """
     Use a pre-trained GAN to transform a synthetic image into the real domain
     """
-    def __init__(self, model_path: str, keys: KeysCollection, allow_missing_keys: bool = False) -> None:
+    def __init__(self, model_path: str|dict[str,str], keys: KeysCollection, model_config: dict = None, allow_missing_keys: bool = False) -> None:
         super().__init__(keys, allow_missing_keys)
-        self.model: torch.nn.Module = MODEL_DICT["resnetGenerator9"]()
-        checkpoint_G = torch.load(model_path)
-        self.model.load_state_dict(checkpoint_G['model'])
+        if model_config is None:
+            self.model: torch.nn.Module = MODEL_DICT["resnetGenerator9"]()
+        else:
+            self.model: torch.nn.Module = MODEL_DICT[model_config.pop("name")](phase=Phase.TEST, MODEL_DICT=MODEL_DICT,**model_config)
+        if isinstance(model_path, dict):
+            for k,v in model_path.items():
+                checkpoint = torch.load(v)
+                net: torch.nn.Module = getattr(self.model, k)
+                net.load_state_dict(checkpoint["model"])
+                print(f"Loaded network weights {k} from epoch {checkpoint['epoch']}.")
+        else:
+            checkpoint = torch.load(model_path)
+            self.model.load_state_dict(checkpoint['model'])
+            print(f"Loaded network weights from epoch {checkpoint['epoch']}.")
+        self.model.eval()
+
 
     def __call__(self, data):
         for key in self.keys:
@@ -59,8 +242,15 @@ class LoadGraphAndFilterByRandomRadiusd(MapTransform):
         self.MIP_axis = MIP_axis
 
     def __call__(self, data):
-        blackdict = None
+        if "blackdict" in data:
+            blackdict_path = data["blackdict"]
+            with open(blackdict_path, mode="rb") as file:
+                blackdict = pickle.load(file)
+        else:
+            blackdict = None
         for i, key in enumerate(self.keys):
+            if key not in data and self.allow_missing_keys:
+                continue
             f: list[dict] = list()
             with open(data[key], newline='') as csvfile:
                 reader = csv.DictReader(csvfile)
@@ -83,6 +273,39 @@ class ToGrayScaled(MapTransform):
             if not self.allow_missing_keys or key in data:
                 data[key] = torch.tensor(np.array(Image.fromarray(data[key].numpy().astype(np.uint8)).convert("L")).astype(np.float32))
         return data
+    
+class SelectSlice(MapTransform):
+    """
+    Select a slice from the given Tensor.
+    """
+    def __init__(self, keys: KeysCollection, allow_missing_keys: bool = False, slice_selection: list[int]=None) -> None:
+        super().__init__(keys, allow_missing_keys)
+        if slice_selection:
+            self.slice_selection = tuple([slice(s,e) for s,e in slice_selection])
+
+    def __call__(self, data):
+        if self.slice_selection is not None:
+            for key in self.keys:
+                if not self.allow_missing_keys or key in data:
+                    data[key] = data[key][self.slice_selection]
+        return data
+    
+class RemoveOuterNoise(Transform):
+    """
+    Remove all components that are not connected to the central plane of the z-axis. Used primarily for 3D reconstruction post-processing.
+    """
+    def __init__(self, z_axis=0) -> None:
+        super().__init__()
+        self.keep_largest_connected_component = KeepLargestConnectedComponent()
+        self.z_axis = z_axis
+
+    def __call__(self, volume: torch.Tensor):
+        volume_tmp = volume.clone().to(dtype=torch.bool, non_blocking=True).unsqueeze(0)
+        volume_tmp[0,volume.shape[self.z_axis]//2].fill_(True)
+        volume_tmp = self.keep_largest_connected_component(volume_tmp, ).squeeze(0)
+        volume = torch.logical_and(volume,volume_tmp)
+        return volume
+
 
 class NoiseModeld(MapTransform):
     """
@@ -236,7 +459,7 @@ class RandCropOrPadd(MapTransform):
                 data[k] = d
         return data
 
-def get_data_augmentations(aug_config: list[dict], dtype=torch.float32) -> list:
+def get_data_augmentations(aug_config: list[dict], seed: int, dtype=torch.float32) -> list:
     if aug_config is None:
         return []
     augs = []
@@ -254,5 +477,8 @@ def get_data_augmentations(aug_config: list[dict], dtype=torch.float32) -> list:
                 aug_d["dtype"] = types
             else:
                 aug_d["dtype"] = types[0]
-        augs.append(aug(**aug_d))
+        aug_obj = aug(**aug_d)
+        if isinstance(aug_obj, Randomizable):
+            aug_obj.set_random_state(seed=seed)
+        augs.append(aug_obj)
     return augs

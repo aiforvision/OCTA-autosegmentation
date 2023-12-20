@@ -1,0 +1,219 @@
+---
+General:
+  amp: true
+  device: cuda:0
+  task: gan-ves-seg
+  inference: G
+  model:
+    name: GanSegModel
+    model_g:
+      name: resnetGenerator9
+    model_d: 
+      name: patchGAN70x70
+    model_s:
+      name: DynUNet
+      spatial_dims: 2
+      in_channels: 1
+      out_channels: 1
+      kernel_size: [3,3,3,3,3]
+      strides: [1,2,2,2,1]
+      upsample_kernel_size: [1,2,2,2,1]
+    compute_identity: false
+    compute_identity_seg: true
+Train:
+  data:
+    real_B:
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/train_
+    real_A:
+      files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/*.csv
+    real_A_seg:
+      files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/*.csv
+    background:
+      files: /home/linus/repos/OCTA-seg/datasets/background_images/*.png
+  epochs: 100
+  epochs_decay: 0
+  save_interval: 25
+  val_interval: 1
+  batch_size: 4
+  lr: 0.0002
+  loss_dg: LSGANLoss
+  loss_s: DiceBCELoss
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - real_B
+      - background
+      image_only: true
+    - name: ToGrayScaled
+      keys:
+        - real_B
+    - name: LoadGraphAndFilterByRandomRadiusd
+      keys:
+        - real_A
+        - real_A_seg
+      image_resolutions: 
+        - [304,304] # for 304x304 images
+        - [1216,1216]
+      min_radius: [0,0]
+      max_dropout_prob: 0.02
+      # radius_range: [0.0001, 0.0015]
+      # p_exp: 2
+    - name: EnsureChannelFirstd
+      keys:
+      - real_A
+      - real_B
+      - real_A_seg
+      - background
+      strict_check: false
+      channel_dim: no_channel
+    - name: Resized
+      keys:
+      - real_B
+      spatial_size:
+      - 304
+      - 304
+      mode: bilinear
+    - name: ScaleIntensityd
+      keys:
+      - real_A
+      - real_B
+      - real_A_seg
+      - background
+      minv: 0
+      maxv: 1
+    - name: RandFlipd
+      keys:
+      - real_A
+      - real_A_seg
+      prob: 0.5
+      spatial_axis:
+      - 0
+      - 1
+    - name: RandRotate90d
+      keys:
+      - real_A
+      - real_A_seg
+      prob: 0.75
+    - name: RandFlipd
+      keys:
+      - real_B
+      - background
+      prob: 0.5
+      spatial_axis:
+      - 0
+      - 1
+    - name: RandRotate90d
+      keys:
+      - real_B
+      - background
+      prob: 0.75
+    - name: RandRotated
+      keys:
+      - real_A
+      - real_B
+      - real_A_seg
+      - background
+      prob: 1
+      range_x: 0.17453292519943295
+      padding_mode: zeros
+    - name: AsDiscreted
+      keys:
+      - real_A_seg
+      threshold: 0.1
+    - name: AddRandomBackgroundNoised
+      keys:
+      - real_A
+    - name: CastToTyped
+      keys:
+      - real_A
+      - real_A_seg
+      - real_B
+      dtype: dtype
+  post_processing:
+    prediction:
+      - name: AsDiscrete
+        threshold: 0.5
+      - name: RemoveSmallObjects
+        min_size: 160
+    label: null
+Test:
+  batch_size: 1
+  data:
+    real_B:
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
+    real_A:
+      files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/*.csv
+    background:
+      files: /home/linus/repos/OCTA-seg/datasets/background_images/*.png
+  save_comparisons: false
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - real_B
+      - background
+      allow_missing_keys: true
+      image_only: true
+    - allow_missing_keys: true
+      name: ToGrayScaled
+      keys:
+        - real_B
+    - name: LoadGraphAndFilterByRandomRadiusd
+      keys:
+        - real_A
+      image_resolutions: 
+        - [304,304]
+      allow_missing_keys: true
+    - name: ScaleIntensityd
+      keys:
+      - real_A
+      - real_B
+      - background
+      allow_missing_keys: true
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+      - real_A
+      - real_B
+      - background
+      allow_missing_keys: true
+      channel_dim: no_channel
+      strict_check: false
+    - name: Rotate90d
+      allow_missing_keys: true
+      keys:
+      # - real_A
+      - real_B
+      - background
+      k: 1
+    - name: Flipd
+      allow_missing_keys: true
+      keys:
+      # - real_A
+      - real_B
+      - background
+      spatial_axis: 0
+    - name: AddRandomBackgroundNoised
+      keys:
+      - real_A
+    - name: CastToTyped
+      keys:
+      - real_A
+      - real_B
+      allow_missing_keys: true
+      dtype: dtype
+  post_processing:
+    # Only if inference=S, else:
+    # prediction: null
+    prediction:
+      - name: AsDiscrete
+        threshold: 0.5
+      - name: RemoveSmallObjects
+        min_size: 160
+    label: null
+Output:
+  save_dir: /home/linus/repos/OCTA-seg/results/gan-ves-seg
+  save_to_disk: true
+  save_to_tensorboard: false

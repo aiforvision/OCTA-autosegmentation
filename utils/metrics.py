@@ -4,11 +4,7 @@ import numpy as np
 import torch
 from monai.metrics import MeanIoU, compute_roc_auc
 from utils.cldice import clDice
-
-
-class Task:
-    VESSEL_SEGMENTATION = "ves-seg"
-    GAN_VESSEL_SEGMENTATION = "gan-ves-seg"
+from utils.enums import Phase
 
 class Metric(ABC):
     def __init__(self) -> None:
@@ -167,27 +163,23 @@ class AUCMetric(Metric):
             self.scores.append(compute_roc_auc(y_pred_i.detach().cpu().flatten(), y_i.detach().cpu().flatten()))
 
 class MetricsManager():
-    def __init__(self, task: Task, phase="train"):
-        if task == Task.VESSEL_SEGMENTATION or task == Task.GAN_VESSEL_SEGMENTATION:
-            if phase=="train":
-                self.metrics = {
-                    "DSC": MacroDiceMetric(),
-                    "IoU": MeanIoU(include_background=True, reduction="mean")
-                }
-            else:
-                self.metrics = {
-                    "DSC": MacroDiceMetric(),
-                    "IoU": MeanIoU(include_background=True, reduction="mean"),
-                    "ClDice": ClDiceMetric(),
-                    "AUC": AUCMetric(),
-                    "ACC": AccuracyMetric(),
-                    "Recall": Recall(),
-                    "Precision": Precision()
-                }
-            self.comp = "DSC"
+    def __init__(self, phase: Phase=Phase.TRAIN):
+        if phase==Phase.TRAIN:
+            self.metrics = {
+                "DSC": MacroDiceMetric(),
+                "IoU": MeanIoU(include_background=True, reduction="mean")
+            }
         else:
-            self.metrics = {}
-            self.comp = None
+            self.metrics = {
+                "DSC": MacroDiceMetric(),
+                "IoU": MeanIoU(include_background=True, reduction="mean"),
+                "ClDice": ClDiceMetric(),
+                "AUC": AUCMetric(),
+                "ACC": AccuracyMetric(),
+                "Recall": Recall(),
+                "Precision": Precision()
+            }
+        self.comp = "DSC"
 
     def __call__(self, y_pred: torch.Tensor, y: torch.Tensor):
         for v in self.metrics.values():

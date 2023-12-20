@@ -23,8 +23,8 @@ def main(config):
         yaml.dump(config, f)
 
     # Initialize forest
-    arterial_forest = Forest(config['Forest'], greenhouse.d, greenhouse.r, greenhouse.simspace)
-    venous_forest = Forest(config['Forest'], greenhouse.d, greenhouse.r, greenhouse.simspace, arterial=False)#, template_forest=arterial_forest)
+    arterial_forest = Forest(config['Forest'], greenhouse.d, greenhouse.r, greenhouse.simspace, nerve_center=greenhouse.nerve_center, nerve_radius=greenhouse.nerve_radius)
+    venous_forest = Forest(config['Forest'], greenhouse.d, greenhouse.r, greenhouse.simspace, arterial=False, nerve_center=greenhouse.nerve_center, nerve_radius=greenhouse.nerve_radius)#, template_forest=arterial_forest)
     
     greenhouse.set_forests(arterial_forest, venous_forest)
 

@@ -61,23 +61,23 @@ class NoiseModel(torch.nn.Module):
 
         if self.optimizer is None:
             self.vessel_noise.reset_params(num_b)
-            self.vessel_noise = self.vessel_noise.to(I.device)
+            self.vessel_noise = self.vessel_noise.to(I.device, non_blocking=True)
             self.specle_noise.reset_params(num_b)
-            self.specle_noise = self.specle_noise.to(I.device)
+            self.specle_noise = self.specle_noise.to(I.device, non_blocking=True)
             self.control_points_gamma = torch.nn.Parameter(
                 torch.zeros((num_b,1,*self.grid_size), dtype=I.dtype, device=I.device).uniform_(0,1)
-            ).to(I.device)
+            ).to(I.device, non_blocking=True)
             self.register_parameter("control_points_gamma", self.control_points_gamma)
             self.optimizer = torch.optim.SGD(self.parameters(), lr=self.alpha)
         if not adversarial:
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=True)
             self.vessel_noise.reset_params(num_b)
             self.specle_noise.reset_params(num_b)
             rg = self.control_points_gamma.requires_grad
             self.control_points_gamma.requires_grad_(False).uniform_(0,1).requires_grad_(rg)
         else:
             self.optimizer.step()
-            self.optimizer.zero_grad()
+            self.optimizer.zero_grad(set_to_none=True)
 
         with torch.cuda.amp.autocast():
             Delta = self.vessel_noise.forward(I_new)[:num_b]

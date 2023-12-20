@@ -24,12 +24,12 @@ def rasterize_forest(forest: list[dict],
 
     Parameters:
     -----------
-        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'.
+        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'. Position coordinates must within [0,1]. Radius is given in [mm].
         - image_resolution: Dimensions of the final 2D image
         - MIP_axis: Axis along which to take the maximum intensity projection. Default is the z dimension
-        - radius_list: A list to collect all edge radii. Default is None
-        - min_radius: All edges with radius smaller than this will not be included in the grayscale image
-        - max_radius: All edges with radius larger than this will not be included in the grayscale image
+        - radius_list: A list to collect all edge radii for later analysis. Default is None. 
+        - min_radius: All edges with radius smaller than this will not be included in the grayscale image. Radius is given in [mm].
+        - max_radius: All edges with radius larger than this will not be included in the grayscale image. Radius is given in [mm].
         - max_dropout_prob: Maximum probablity with which an edge and its decendents are dropped. 
                             The probabily is sampled from :math:`p = P**10, P ~ Uniform(0,max_dropout_prob)`
         - blackdict: A dictionary containing all parent nodes that were removed in the paired image.
@@ -117,9 +117,9 @@ def getCrossSlice(p1: tuple[int], p2: tuple[int], radius: int, voxel_size: float
     Computes relevant indices in an image tensor that contain the line from p1 to p2 with the given radius.
     
     Paramters:
-        - p1: 3D point in simulation space
-        - p2: 3D point in simulation space
-        - radius: radius of line in simulation space scale
+        - p1: 3D point in simulation space. Position coordinates must within [0,1].
+        - p2: 3D point in simulation space. Position coordinates must within [0,1].
+        - radius: radius of line in simulation space scale. Radius is given in [mm].
         - voxel_size: The voxel size of the rendered image w.r.t. the simulation space
         - image_dim: shape of image tensor in voxels
         - mode: Type of indexing strategy that being used. 'tube' is more precise and better for long lines. 'cuboid' is faster to compute and better for short lines
@@ -178,19 +178,20 @@ def voxelize_forest(forest: dict,
                     min_radius=0,
                     max_radius=1,
                     max_dropout_prob=0,
-                    blackdict: dict[str, bool]=None) -> Tuple[np.ndarray, dict[str, bool]]:
+                    blackdict: dict[str, bool]=None,
+                    ignore_z=False) -> Tuple[np.ndarray, dict[str, bool]]:
     """
     Converts the given 3D forest into a 3D (grayscale) volume.
     Antialiased drawing of the tree edges is performed manually.
 
     Parameters:
     -----------
-        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'. The coordinates are expected to be within 0-1. If you normalize your coordinates make sure to scale the radius by the same factor.
+        - forest: list of edges. An edge is a dictionary with 'node1' position 'node2' position and 'radius'. Position coordinates must within [0,1]. Radius is given in [mm].
         - volume_dimensions: Dimensions of the final 3D volume
         - MIP_axis: Axis along which to take the maximum intensity projection. Default is the z dimension
-        - radius_list: A list to collect all edge radii. Default is None
-        - min_radius: All edges with radius smaller than this will not be included in the grayscale image
-        - max_radius: All edges with radius larger than this will not be included in the grayscale image
+        - radius_list: A list to collect all edge radii for later analysis. Default is None
+        - min_radius: All edges with radius smaller than this will not be included in the grayscale image. Radius is given in [mm].
+        - max_radius: All edges with radius larger than this will not be included in the grayscale image. Radius is given in [mm].
         - max_dropout_prob: Maximum probablity with which an edge and its decendents are dropped. 
                             The probabily is sampled from :math:`p = P**10, P ~ Uniform(0,max_dropout_prob)`
         - blackdict: A dictionary containing all parent nodes that were removed in the paired image.
@@ -201,18 +202,20 @@ def voxelize_forest(forest: dict,
         - 3D grayscale volume of all rendered vessels.
         - backlist dictionary containing all parent nodes that were dropped 
     """
-    MIN_DIM_SIZE=30 # A minimal size of 30 is necessary to consider nodes that accidentally grew outside of the simulation space.
+    MAX_RADIUS = 0.015
+    scale_factor = max(volume_dimensions)
+    # A minimal size is necessary to consider nodes that accidentally grew outside of the simulation space and to render the vessel radius correctly.
+    MIN_DIM_SIZE=math.ceil((1/76)*scale_factor+2*MAX_RADIUS*scale_factor)
     image_dim = np.array([max(MIN_DIM_SIZE,d) for d in volume_dimensions])
-    if radius_list is None:
-        radius_list=[]
-    scale_factor = max(image_dim)
-    pos_correction = (image_dim-np.array(volume_dimensions))//2
+    pos_correction = (image_dim-np.array(volume_dimensions))/2
     no_voxel_x, no_voxel_y, no_voxel_z = image_dim
     voxel_size = 1
     voxel_diag = np.linalg.norm(np.array([1, 1, 1]))
 
     img = np.zeros((no_voxel_x, no_voxel_y, no_voxel_z))
 
+    if radius_list is None:
+        radius_list=[]
     if blackdict is None:
         blackdict = dict()
         p = random()**10 * max_dropout_prob
@@ -236,24 +239,29 @@ def voxelize_forest(forest: dict,
             continue
         radius_list.append(radius)
 
-        current_node = np.array(current_node)*scale_factor
-        proximal_node = np.array(proximal_node)*scale_factor
+        radius*=scale_factor
+        current_node = np.array(current_node)*scale_factor+pos_correction
+        proximal_node = np.array(proximal_node)*scale_factor+pos_correction
+
+        if ignore_z:
+            current_node[2]=image_dim[2]//2
+            proximal_node[2]=image_dim[2]//2
 
         voxel_indices = np.array(getCrossSlice(
-            current_node+pos_correction, proximal_node+pos_correction, radius,voxel_size, image_dim
+            current_node, proximal_node, radius,voxel_size, image_dim
         ))
         if len(voxel_indices) == 0:
             continue
         indices = (voxel_indices+.5) * voxel_size
 
         # Calculate orthogonal projection of each voxel onto segment
-        segment_vector = (current_node+pos_correction) - (proximal_node+pos_correction)
-        voxel_vector = indices - (proximal_node+pos_correction)
+        segment_vector = current_node - proximal_node
+        voxel_vector = indices - proximal_node
         scalar_projection = np.dot(voxel_vector, segment_vector) / np.dot(segment_vector, segment_vector)
         inside_segment = np.logical_and(scalar_projection > 0, scalar_projection < 1)
 
         # If the projection falls onto the segment, add the vessel's contribution to the oxygen map
-        vector_projection = (proximal_node+pos_correction) + np.dot(scalar_projection[:, None], segment_vector[None, :])
+        vector_projection = proximal_node + np.dot(scalar_projection[:, None], segment_vector[None, :])
         dist = np.linalg.norm(indices - vector_projection, axis=1)
 
         inds: list[list] = voxel_indices[inside_segment].astype(np.uint16).transpose().tolist()
@@ -262,15 +270,11 @@ def voxelize_forest(forest: dict,
         img[tuple(inds)] = np.maximum(volume_contribution, img[tuple(inds)])
         # Handle beginning and end
         dist = np.minimum(
-            np.linalg.norm(indices-(current_node+pos_correction), axis=1),
-            np.linalg.norm(indices-(proximal_node+pos_correction), axis=1)
+            np.linalg.norm(indices-current_node, axis=1),
+            np.linalg.norm(indices-proximal_node, axis=1)
         )
         inds = voxel_indices.astype(np.uint16).transpose().tolist()
         img[tuple(inds)] = np.maximum(1-((dist - (radius - voxel_diag/2)) / voxel_diag), img[tuple(inds)])
-    # img[img>0]=1
-    img=img[pos_correction[0]:pos_correction[0]+volume_dimensions[0],
-            pos_correction[1]:pos_correction[1]+volume_dimensions[1],
-            pos_correction[2]:pos_correction[2]+volume_dimensions[2]]
     img = (255*np.clip(img,0,1))
     return img.astype(np.uint16), blackdict
 

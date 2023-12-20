@@ -13,7 +13,7 @@ class SimulationSpace:
     It is possible to provide a geometry file to specify a custom shape inside the cuboid.
     """
 
-    def __init__(self, config: dict, FAZ_center: np.ndarray = None, FAZ_radius: int = None):
+    def __init__(self, config: dict, FAZ_center: np.ndarray = None, FAZ_radius: int = None, nerve_center: np.ndarray = None, nerve_radius: float=None):
         """
         Create a new Simulation space in wich the vessel trees are grown.
 
@@ -43,6 +43,13 @@ class SimulationSpace:
             self.FAZ_radius = np.array(FAZ_radius)*self.geometry_size*0.5
             y_coords, x_coords = np.ogrid[:ceil(self.size_x*self.geometry_size), :ceil(self.size_y*self.geometry_size)]
             self.geometry = (x_coords - self.FAZ_center[0])**2 + (y_coords - self.FAZ_center[1])**2 > self.FAZ_radius**2
+            if all(nerve_center-nerve_radius<=1):
+                self.nerve_center = np.array(nerve_center)*self.geometry_size
+                self.nerve_radius = np.array(nerve_radius)*self.geometry_size
+                self.geometry &= (x_coords - self.nerve_center[0])**2 + (y_coords - self.nerve_center[1])**2 > self.nerve_radius**2
+            else:
+                self.nerve_radius=None
+                self.nerve_center=None
             self.geometry = np.expand_dims(self.geometry,-1)
             self.valid_voxels = np.argwhere(self.geometry) # Positions miss z dim
 

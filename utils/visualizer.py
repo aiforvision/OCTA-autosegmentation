@@ -11,7 +11,9 @@ import json
 import yaml
 import math
 from PIL import Image
-from utils.metrics import Task
+from utils.enums import Phase, Task
+from rich.console import Group, RenderableType
+import nibabel as nib
 
 class Visualizer():
     """
@@ -63,15 +65,18 @@ class Visualizer():
                         for k,v in record.items():
                             self.tb.add_scalar(k,v,epoch+1)
         else:
-            self.save_dir = os.path.join(config["Output"]["save_dir"], datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
-            os.mkdir(self.save_dir)
+            while True:
+                self.save_dir = os.path.join(config["Output"]["save_dir"], datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
+                if not os.path.exists(self.save_dir):
+                    os.mkdir(self.save_dir)
+                    break
             if self.save_to_tensorboard:
                 self.tb = SummaryWriter(log_dir=self.save_dir)
         
         config["Output"]["save_dir"] = self.save_dir
-        config["Test"]["save_dir"] = os.path.join(self.save_dir, 'test')
-        # config["Validation"]["save_dir"] = os.path.join(self.save_dir, 'val')
-        config["Test"]["model_path"] = os.path.join(self.save_dir, 'best_model.pth')
+        config[Phase.TEST]["save_dir"] = os.path.join(self.save_dir, Phase.TEST.value)
+        # config[Phase.VALIDATION]["save_dir"] = os.path.join(self.save_dir, Phase.VALIDATION)
+        config[Phase.TEST]["model_path"] = os.path.join(self.save_dir, 'best_model.pth')
         with open(os.path.join(self.save_dir, 'config.yml'), 'w') as f:
             yaml.dump(config, f)
             # json.dump(config, f, ensure_ascii=False, indent=4)
@@ -211,23 +216,32 @@ class Visualizer():
         s += f"\nTotal Trainable Params: {total_params}"
         return s
 
-    def save_model_architecture(self, model: torch.nn.Module, batch):
+    def save_model_architecture(self, model: torch.nn.Module, input: torch.Tensor):
+        if input is not None:
+            if self.save_to_tensorboard:
+                print("Warning: Larger memory consumption while saving to tensorboard. Set 'save_to_tensorboard=False' if you want to skip this.")
+                self.tb.add_graph(model, input.float())
+            else:
+                with torch.no_grad():
+                    with torch.cuda.amp.autocast():
+                        model.forward(input)
+        else:
+            print("No input given for test run. Saved architecture might change after first run!")
         with open(os.path.join(self.save_dir, 'architecture.txt'), 'w+') as f:
             f.writelines(str(model))
             f.write("\n")
             f.writelines(self._count_parameters(model))
-        if self.save_to_tensorboard:
-            self.tb.add_graph(model, batch)
 
-    def save_model(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int, prefix: str="") -> str:
+    def save_model(self, model: torch.nn.Module, optimizer: torch.optim.Optimizer, epoch: int, config: dict, prefix: str="") -> str:
         if not os.path.exists(os.path.join(self.save_dir, "checkpoints")):
             os.mkdir(os.path.join(self.save_dir, "checkpoints"))
         path = os.path.join(self.save_dir, "checkpoints", f"{prefix}_model.pth")
         torch.save(
             {
                 'epoch': epoch,
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict()
+                'model': model.state_dict() if model is not None else None,
+                'optimizer': optimizer.state_dict() if optimizer is not None else None,
+                'config': config
             },
             path,
         )
@@ -263,10 +277,9 @@ class Visualizer():
         real_B: torch.Tensor,
         idt_B: torch.Tensor,
         real_B_seg: torch.Tensor,
-        epoch: int,
         path_A: str,
         path_B: str,
-        save_epoch=False,
+        suffix: str,
         full_size=True):
         
         name_A = path_A.split("/")[-1]
@@ -279,7 +292,7 @@ class Visualizer():
             "Identity OCTA": idt_B,
             "Predicted Segmentation Map": real_B_seg
         }
-        images = {k: (v.squeeze().detach().clip(0,1).cpu().numpy() * 255).astype(np.uint8) for k,v in images.items() if v is not None}
+        images = {k: (v.squeeze().detach().float().clip(0,1).cpu().numpy() * 255).astype(np.uint8) for k,v in images.items() if v is not None}
         div = (1 if full_size else 2)
         inches = get_fig_size(real_A)
         fig, _ = plt.subplots(2, 3, figsize=(3*inches[1]/div, 2*inches[0]/div))
@@ -287,16 +300,52 @@ class Visualizer():
         for i, (title, img) in enumerate(images.items()):
             fig.axes[i].imshow(img, cmap='gray')
             fig.axes[i].set_title(title)
-        path = os.path.join(self.save_dir, f'latest.png')
+        path = os.path.join(self.save_dir, f'sample_{suffix}.png')
         plt.savefig(path, bbox_inches='tight')
         plt.close()
-        if save_epoch:
-            copyfile(path, os.path.join(self.save_dir, f'{epoch}.png'))
+        return path
+    
+    def plot_cut_sample(
+        self,
+        real_A: torch.Tensor,
+        fake_B: torch.Tensor,
+        real_B: torch.Tensor,
+        idt_B: torch.Tensor,
+        path_A: str,
+        path_B: str,
+        suffix: str,
+        full_size=True):
+        
+        name_A = path_A.split("/")[-1]
+        name_B = path_B.split("/")[-1]
+        images = {
+            name_A + " - Synthetic Vesselmap": real_A,
+            "Synthetic OCTA": fake_B,
+            name_B + "- Real OCTA": real_B,
+            "Identity OCTA": idt_B
+        }
+        images = {k: (v.squeeze().detach().float().clip(0,1).cpu().numpy() * 255).astype(np.uint8) for k,v in images.items() if v is not None}
+        div = (1 if full_size else 2)
+        inches = get_fig_size(real_A)
+        fig, _ = plt.subplots(2, 2, figsize=(3*inches[1]/div, 3*inches[0]/div))
+        plt.title(f"A: {name_A}, B: {name_B}")
+        for i, (title, img) in enumerate(images.items()):
+            fig.axes[i].imshow(img, cmap='gray')
+            fig.axes[i].set_title(title)
+        path = os.path.join(self.save_dir, f'sample_{suffix}.png')
+        plt.savefig(path, bbox_inches='tight')
+        plt.close()
+        return path
 
 def plot_single_image(save_dir:str, input: torch.Tensor, name:str=None):
+    input=input.squeeze()
     if len(input.shape)>2:
-        input = input[0]
-    Image.fromarray((input.squeeze().detach().cpu().numpy()*255).astype(np.uint8)).save(os.path.join(save_dir, '.'.join(name.split('.')[:-1])+".png"))
+        # input = input[0]
+        input = input.squeeze().detach().cpu().numpy()*255
+        nifti = nib.Nifti1Image(input.astype(np.uint8), np.eye(4))
+        nib.save(nifti, os.path.join(save_dir, '.'.join(name.split('.')[:-1])+".nii.gz"))
+    else:
+        Image.fromarray((input.squeeze().detach().cpu().numpy()*255).astype(np.uint8)).save(os.path.join(save_dir, '.'.join(name.split('.')[:-1])+".png"))
     # Image.fromarray((input.squeeze().detach().cpu().numpy()*255).astype(np.uint8)).save(os.path.join(save_dir, name))
 
 def plot_sample(
@@ -320,12 +369,15 @@ def plot_sample(
     input = input / input.max()
     input = (input * 255).astype(np.uint8)
     
+    pred = pred.squeeze().detach().cpu().numpy()
+    pred = (pred * 255).astype(np.uint8)
     if truth is not None:
         truth = truth.squeeze().detach().cpu().numpy()
         truth = (truth * 255).astype(np.uint8)
 
-    pred = pred.squeeze().detach().cpu().numpy()
-    pred = (pred * 255).astype(np.uint8)
+    if len(pred.shape)==3:
+        pred = np.max(pred, axis=-1, keepdims=False)
+        truth = np.max(truth, axis=-1, keepdims=False)
 
     name = path.split("/")[-1]
     n = 2 if truth is None else 3
@@ -455,3 +507,14 @@ def save_prediction_csv(save_dir: str, predictions: list[list]):
             writer.writerow(["case","class", "P0", "P1", "P2"])
             for prediction in predictions:
                 writer.writerow(prediction)
+
+class DynamicDisplay():
+    def __init__(self, group: Group, *renderables: RenderableType) -> None:
+        self.group = group
+        self.renderables = renderables
+    def __enter__(self):
+        self.group.renderables.extend(self.renderables)
+    def __exit__(self, exception_type, exception_value, exception_traceback):
+        for r in self.renderables:
+            self.group.renderables.remove(r)
+

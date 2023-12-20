@@ -5,7 +5,7 @@ import torch
 
 EPSILON = 1e-12
 
-class OOF:
+class OOF():
     """
     2D Optimal Oriented Flux (OOF) filter.
     Code based on https://github.com/fepegar/optimally-oriented-flux
@@ -16,7 +16,7 @@ class OOF:
 
         self.spacing = 1, 1
         self.num_radii = 5
-        self.radii = self.get_radii()
+        self.radii = self._get_radii()
 
         self.sigma = min(self.spacing)
 
@@ -36,44 +36,39 @@ class OOF:
         """
         assert img.shape[0]==1
         oof = img.squeeze().numpy() * 255
-        oof = self.compute_oof(oof, self.radii)
+        oof = self._compute_oof(oof, self.radii)
         oof = oof+oof.max()
         oof = oof / oof.max()
         oof = torch.tensor(oof).view(img.shape)
         return oof
 
-    def eval(self):
-        pass
-    def train(self):
-        pass
-
-    def get_radii(self) -> np.ndarray:
+    def _get_radii(self) -> np.ndarray:
         return np.arange(1, self.num_radii + 1) * min(self.spacing)
 
-    def check_normalization(self, radii):
+    def _check_normalization(self, radii):
         if min(radii) < self.sigma and self.normalization_type > 0:
             print('Sigma must be >= minimum range to enable the advanced'
                   ' normalization. The current setting falls back to'
                   ' normalization_type = 0 because of the undersize sigma.')
             self.normalization_type = 0
 
-    def compute_oof(self, array: np.ndarray, radii: np.ndarray) -> np.ndarray:
+    def _compute_oof(self, array: np.ndarray, radii: np.ndarray) -> np.ndarray:
         array = array.astype(np.double)
         shape = array.shape
         output = np.zeros(shape)
-        self.check_normalization(radii)
+        self._check_normalization(radii)
         imgfft = fftn(array)
-        x, y, sphere_radius = get_min_sphere_radius(shape, self.spacing)
+        x, y, sphere_radius = _get_min_sphere_radius(shape, self.spacing)
 
         for radius in radii:
             # tqdm.write(f'Computing radius {radius:.3f}...')
-            circle = circle_length(radius)
+            circle = _circle_length(radius)
             nu = 1.5
             z_circle = circle * EPSILON
             bessel = besselj(nu, z_circle) / EPSILON**(3 / 2)
             base = radius / np.sqrt(2 * radius * self.sigma - self.sigma**2)
             exponent = self.normalization_type
-            volume = get_circle_area(radius)
+            volume = _get_circle_area(radius)
             normalization = volume / bessel / radius**2 * base**exponent
 
             exponent = - self.sigma**2 * 2 * np.pi**2 * sphere_radius**2
@@ -135,8 +130,8 @@ class OOF:
             output[stronger_response] = tmpfeature[stronger_response]
         return output
 
-def get_min_sphere_radius(shape, spacing):
-    x, y = ifft_shifted_coordinates_matrix(shape)
+def _get_min_sphere_radius(shape, spacing):
+    x, y = _ifft_shifted_coordinates_matrix(shape)
     si, sj = shape
     pi, pj = spacing
     x /= si * pi
@@ -144,13 +139,13 @@ def get_min_sphere_radius(shape, spacing):
     sphere_radius = np.sqrt(x**2 + y**2) + EPSILON
     return x, y, sphere_radius
     
-def get_circle_area(radius):
+def _get_circle_area(radius):
     return np.pi * radius**2
 
-def circle_length(radius):
+def _circle_length(radius):
     return 2 * np.pi * radius
 
-def ifft_shifted_coordinates_matrix(shape):
+def _ifft_shifted_coordinates_matrix(shape):
     shape = np.array(shape)
     dimensions = len(shape)
     p = shape // 2

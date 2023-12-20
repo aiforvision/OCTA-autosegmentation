@@ -31,7 +31,7 @@ Train:
       files: /ABSOLUTE/PATH/TO/SYNTHETIC/CSV/FOLDER/**/*.csv
     background:
       files: /ABSOLUTE/PATH/TO/SYNTHETIC/BACKGROUND/FOLDER/**/*.png
-  epochs: 150
+  epochs: 100
   epochs_decay: 0
   save_interval: 25
   batch_size: 4
@@ -213,8 +213,7 @@ Test:
       - name: RemoveSmallObjects
         min_size: 160
     label: null 
-  save_dir: ./results/gan-ves-seg/test # /PATH/TO/YOUR/RESULTS/FOLDER
 Output:
   save_dir: ./results/gan-ves-seg # /PATH/TO/YOUR/RESULTS/FOLDER
   save_to_disk: true
-  save_to_tensorboard: true
+  save_to_tensorboard: false

@@ -15,6 +15,8 @@ Greenhouse:
   FAZ_center: # x-y position of the FAZ
     - 0.5
     - 0.5
+  nerve_center: [10.56,5.16] # If type is set to nerve, this is the x-y position of the nerve
+  nerve_radius: 0.3 # Radius of the optical nerve
   param_scale: 3 # Parameter scale used to scale all spatial parameters. 3 means we generate a 3 mm x 3 mm image.
   modes: # List of sequential growth stages. We first develop the superficial vascular complex (SVC), then the deep vascular complex (DVC)
     - name: SVC
@@ -63,5 +65,3 @@ Forest:
     z0: false
     z1: false
   N_trees: 8 # Number of separate trees that are grown simultanously
-  nerve_center: [0.43,0.88] # If type is set to nerve, this is the x-y position of the nerve
-  nerve_radius: [0.01] # Radius of the optical nerve

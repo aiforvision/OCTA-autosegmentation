@@ -202,9 +202,9 @@ Test:
   data:
     image:
       files: /ABSOLUTE/PATH/TO/OCTA-500/images/*.png
-      spilt: /ABSOLUTE/PATH/TO/OCTA-500/test_0.txt
+      spilt: /ABSOLUTE/PATH/TO/OCTA-500/val_0.txt
       # files: /ABSOLUTE/PATH/TO/ROSE-1/images/*.png
-      # spilt: /ABSOLUTE/PATH/TO/ROSE-1/test_0.txt
+      # spilt: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
       # files: /ABSOLUTE/PATH/TO/Giarratano/original_images/*.png
       # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
   save_comparisons: false
@@ -263,4 +263,4 @@ Test:
 Output:
   save_dir: ./results/ves-seg-S
   save_to_disk: true
-  save_to_tensorboard: true
+  save_to_tensorboard: false

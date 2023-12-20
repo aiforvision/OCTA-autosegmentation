@@ -1,0 +1,172 @@
+---
+# Configuration for optimal-oriented-flux-filter based vessel segmentation
+General:
+  amp: false
+  device: cpu
+  task: ves-seg
+  model:
+    name: oof
+Validation:
+  batch_size: 1
+  data:
+    image:
+      # files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png
+      # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
+
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images//**/*.png # ROSE-1
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
+
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/**/*.png # OCTA-500
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt
+    label: 
+      # files: /ABSOLUTE/PATH/TO/Giarratano/segmented_images/**/*.png
+      # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
+
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/segmentations/**/*.png
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
+
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/segmentations/**/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - image
+      - label
+      image_only: true
+    - name: ScaleIntensityd
+      keys:
+      - image
+      - label
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+      - image
+      - label
+      strict_check: false
+      channel_dim: no_channel
+    - name: Resized
+      keys:
+      - label
+      spatial_size:
+      # Giarratano
+      # - 360
+      # - 360
+      # OCTA-500 and ROSE-1
+      - 1216
+      - 1216
+      mode: bilinear
+    - name: Rotate90d
+      keys:
+      - image
+      - label
+      k: 1
+    - name: Flipd
+      keys:
+      - image
+      - label
+      spatial_axis: 0
+    - name: AsDiscreted
+      keys:
+      - label
+      threshold: 0.5
+    - name: CastToTyped
+      keys:
+      - image
+      - label
+      dtype: dtype
+  post_processing:
+    prediction:
+    - name: AsDiscrete
+      # threshold: 0.58 # Giarratano
+      # threshold: 0.58 # ROSE
+      threshold: 0.65 # OCTA-500
+    - name: RemoveSmallObjects
+      # min_size: 5 # Giarratano
+      # min_size: 54 # ROSE-1
+      min_size: 34 # OCTA-500
+    - name: Resize
+      spatial_size:
+        # Giarratano
+        # - 360
+        # - 360
+        # OCTA-500 and ROSE-1
+        - 1216
+        - 1216
+      mode: bilinear
+    - name: AsDiscrete
+      threshold: 0.5
+    label: null
+Test:
+  batch_size: 1
+  data:
+    image:
+      # files: /ABSOLUTE/PATH/TO/Giarratano/original_images/**/*.png # Giarratano
+      # split: /ABSOLUTE/PATH/TO/Giarratano/val_0.txt
+
+      # files: /ABSOLUTE/PATH/TO/ROSE-1/images/**/*.png # ROSE-1
+      # split: /ABSOLUTE/PATH/TO/ROSE-1/val_0.txt
+
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/**/*.png # OCTA-500
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_0.txt
+  save_comparisons: false
+  data_augmentation:
+  - name: LoadImaged
+    keys:
+    - image
+    image_only: true
+  - name: ToGrayScaled
+    keys:
+    - image
+  - name: ScaleIntensityd
+    keys:
+    - image
+    minv: 0
+    maxv: 1
+  - name: EnsureChannelFirstd
+    keys:
+    - image
+    strict_check: false
+    channel_dim: no_channel
+  - name: Rotate90d
+    keys:
+    - image
+    k: 1
+  - name: Flipd
+    keys:
+    - image
+    spatial_axis: 0
+  - name: CastToTyped
+    keys:
+    - image
+    dtype: dtype
+  post_processing:
+    prediction:
+    - name: AsDiscrete
+      # threshold: 0.525 # Giarratano
+      # threshold: 0.578 # ROSE
+      threshold: 0.65 # OCTA-500
+    - name: RemoveSmallObjects
+      # min_size: 80 # Giarratano
+      # min_size: 42 # ROSE-1
+      min_size: 40 # OCTA-500
+    - name: Resize
+      spatial_size:
+        # Giarratano
+        # - 360
+        # - 360
+        # OCTA-500 and ROSE-1
+        - 1216
+        - 1216
+      mode: bilinear
+    - name: AsDiscrete
+      threshold: 0.5
+    label: null
+  save_dir: ./results/oof/test
+Output:
+  save_dir: ./results/oof
+  save_to_disk: true
+  save_to_tensorboard: false
+  save_interval: 1
+    
+

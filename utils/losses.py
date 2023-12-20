@@ -1,9 +1,10 @@
 from monai.losses import DiceLoss
 import torch
 from torch.cuda.amp.grad_scaler import GradScaler
-from typing import Union
+from typing import Callable
 from random import randint, uniform, choice
 from torchvision.transforms.functional import rotate, InterpolationMode
+from utils.enums import Phase
 
 from models.noise_model import NoiseModel
 
@@ -164,7 +165,7 @@ class QWKLoss(torch.nn.Module):
 
     def forward(self, output, target):
         # Keep trace of output dtype for half precision training
-        target = torch.nn.functional.one_hot(target.squeeze().long(), num_classes=self.num_classes).to(target.device).type(output.dtype)
+        target = torch.nn.functional.one_hot(target.squeeze().long(), num_classes=self.num_classes).to(target.device, non_blocking=True).type(output.dtype)
         output = torch.softmax(output, dim=1)
         return self.quadratic_kappa_loss(output, target, self.scale)
 
@@ -182,6 +183,8 @@ class WeightedMSELoss():
 class LSGANLoss(torch.nn.Module):
     def __init__(self, target_real_label=1.0, target_fake_label=0.0) -> None:
         super().__init__()
+        self.real_label: torch.Tensor
+        self.fake_label: torch.Tensor
         self.register_buffer('real_label', torch.tensor(target_real_label))
         self.register_buffer('fake_label', torch.tensor(target_fake_label))
         self.loss = torch.nn.MSELoss()
@@ -195,24 +198,156 @@ class LSGANLoss(torch.nn.Module):
 
     def __call__(self, prediction, target_is_real) -> torch.Tensor:
         target_tensor = self.get_target_tensor(prediction, target_is_real)
-        loss = self.loss(prediction, target_tensor)
+        loss: torch.Tensor = self.loss(prediction, target_tensor)
         return loss.mean()
+    
+class PatchNCELoss(torch.nn.Module):
+    def __init__(self, batch_size: int, nce_includes_all_negatives_from_minibatch=False, nce_T:float=0.07):
+        """
+        Taken from https://github.com/taesungp/contrastive-unpaired-translation/
+
+        Parameters:
+        -----------
+        - batch_size: Training batch size
+        - nce_includes_all_negatives_from_minibatch: If True, include the negatives from the other samples of the minibatch when computing the contrastive loss. (Used for single image translation) 
+        - nce_T: Temperature for NCE loss
+
+        Returns:
+        --------
+        - Contrastive patch loss
+        """
+        super().__init__()
+        self.nce_includes_all_negatives_from_minibatch = nce_includes_all_negatives_from_minibatch
+        self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
+        self.batch_size = batch_size
+        self.nce_T = nce_T
+
+    def forward(self, feat_q: torch.Tensor, feat_k: torch.Tensor) -> torch.Tensor:
+        num_patches = feat_q.shape[0]
+        dim = feat_q.shape[1]
+        feat_k = feat_k.detach()
+
+        # pos logit
+        l_pos = torch.bmm(
+            feat_q.view(num_patches, 1, -1), feat_k.view(num_patches, -1, 1))
+        l_pos = l_pos.view(num_patches, 1)
+
+        # neg logit
+
+        # Should the negatives from the other samples of a minibatch be utilized?
+        # In CUT and FastCUT, we found that it's best to only include negatives
+        # from the same image. Therefore, we set
+        # --nce_includes_all_negatives_from_minibatch as False
+        # However, for single-image translation, the minibatch consists of
+        # crops from the "same" high-resolution image.
+        # Therefore, we will include the negatives from the entire minibatch.
+        if self.nce_includes_all_negatives_from_minibatch:
+            # reshape features as if they are all negatives of minibatch of size 1.
+            batch_dim_for_bmm = 1
+        else:
+            batch_dim_for_bmm = self.batch_size
+
+        # reshape features to batch size
+        feat_q = feat_q.view(batch_dim_for_bmm, -1, dim)
+        feat_k = feat_k.view(batch_dim_for_bmm, -1, dim)
+        npatches = feat_q.size(1)
+        l_neg_curbatch = torch.bmm(feat_q, feat_k.transpose(2, 1))
+
+        # diagonal entries are similarity between same features, and hence meaningless.
+        # just fill the diagonal with very small number, which is exp(-10) and almost zero
+        diagonal = torch.eye(npatches, device=feat_q.device, dtype=torch.bool)[None, :, :]
+        l_neg_curbatch.masked_fill_(diagonal, -10.0)
+        l_neg = l_neg_curbatch.view(-1, npatches)
+
+        out = torch.cat((l_pos, l_neg), dim=1) / self.nce_T
+
+        loss = self.cross_entropy_loss(out, torch.zeros(out.size(0), dtype=torch.long, device=feat_q.device))
+        return loss
+    
+class LearnedPatchNCELoss(torch.nn.Module):
+    """
+    Taken from https://github.com/WeilunWang/NEGCUT
+    """
+    def __init__(self, batch_size:int, nce_includes_all_negatives_from_minibatch=False, nce_T:float=0.07):
+        super().__init__()
+        self.batch_size = batch_size
+        self.nce_T = nce_T
+        self.nce_includes_all_negatives_from_minibatch = nce_includes_all_negatives_from_minibatch
+        self.cross_entropy_loss = torch.nn.CrossEntropyLoss(reduction='none')
+
+    def forward(self, feat_q: torch.Tensor, feat_k: torch.Tensor, neg_sample:torch.Tensor=None):
+        batchSize = feat_q.shape[0]
+        dim = feat_q.shape[1]
+        feat_k = feat_k.detach()
+
+        # pos logit
+        l_pos = torch.bmm(feat_q.view(batchSize, 1, -1), feat_k.view(batchSize, -1, 1))
+        l_pos = l_pos.view(batchSize, 1)
+
+        # neg logit
+
+        # Should the negatives from the other samples of a minibatch be utilized?
+        # In CUT and FastCUT, we found that it's best to only include negatives
+        # from the same image. Therefore, we set
+        # --nce_includes_all_negatives_from_minibatch as False
+        # However, for single-image translation, the minibatch consists of
+        # crops from the "same" high-resolution image.
+        # Therefore, we will include the negatives from the entire minibatch.
+        if self.nce_includes_all_negatives_from_minibatch:
+            # reshape features as if they are all negatives of minibatch of size 1.
+            batch_dim_for_bmm = 1
+        else:
+            batch_dim_for_bmm = self.batch_size
+
+        # reshape features to batch size
+        feat_q = feat_q.view(batch_dim_for_bmm, -1, dim)
+        if neg_sample is not None:
+            neg_sample = neg_sample.view(batch_dim_for_bmm, -1, dim)
+            npatches = neg_sample.size(1)
+            l_neg = torch.bmm(feat_q, neg_sample.transpose(2, 1)).view(-1, npatches)
+        else:
+            feat_k = feat_k.view(batch_dim_for_bmm, -1, dim)
+            npatches = feat_q.size(1)
+            l_neg_curbatch = torch.bmm(feat_q, feat_k.transpose(2, 1))
+
+            # diagonal entries are similarity between same features, and hence meaningless.
+            # just fill the diagonal with very small number, which is exp(-10) and almost zero
+            diagonal = torch.eye(npatches, device=feat_q.device, dtype=torch.bool)[None, :, :]
+            l_neg_curbatch.masked_fill_(diagonal, -10.0)
+            l_neg = l_neg_curbatch.view(-1, npatches)
+
+        out = torch.cat((l_pos, l_neg), dim=1) / self.nce_T
+
+        loss = self.cross_entropy_loss(out, torch.zeros(out.size(0), dtype=torch.long, device=feat_q.device))
+        return loss
 
 
-def get_loss_function_by_name(name: str, config: dict[str, dict], scaler: GradScaler=None, loss=None) -> Union[DiceBCELoss, torch.nn.CrossEntropyLoss, WeightedCosineLoss]:
+def get_loss_function_by_name(
+        name: str,
+        config: dict[str, dict],
+        scaler: GradScaler=None,
+        loss=None
+    ) -> Callable[[torch.Tensor, torch.Tensor], torch.Tensor]:
     if "Data" in config:
         weight = 1/torch.tensor(config["Data"]["class_balance"], device=config["General"].get("device") or "cpu")
     else:
         weight = None
     loss_map = {
         # "AtLoss": AtLoss(scaler, loss, None, 200/255, 1, alpha=1.25 * (100/255), grad_align_cos_lambda=0),
-        "AtLoss": lambda: ANTLoss(scaler, loss, **(config["Train"].get("AT") or {})),
+        "AtLoss": lambda: ANTLoss(scaler, loss, **(config[Phase.TRAIN].get("AT") or {})),
         "DiceBCELoss": lambda: DiceBCELoss(True),
         "CrossEntropyLoss": lambda: torch.nn.CrossEntropyLoss(weight=weight),
         "CosineEmbeddingLoss": lambda: WeightedCosineLoss(weights=weight),
-        "MSELoss": lambda: torch.nn.MSELoss(),
+        "MSELoss": lambda: torch.nn.MSELoss().to(device=config["General"].get("device") or "cpu", non_blocking=True),
         "WeightedMSELoss": lambda: WeightedMSELoss(weights=weight),
         "QWKLoss": lambda: QWKLoss(),
-        "LSGANLoss": lambda: LSGANLoss().to(device=config["General"].get("device") or "cpu"),
+        "LSGANLoss": lambda: LSGANLoss().to(device=config["General"].get("device") or "cpu", non_blocking=True),
+        "L1Loss": lambda: torch.nn.L1Loss().to(device=config["General"].get("device") or "cpu", non_blocking=True),
+        "PatchNCELoss": lambda: PatchNCELoss(batch_size=config[Phase.TRAIN]["batch_size"]),
+        "LearnedPatchNCELoss": lambda: LearnedPatchNCELoss(batch_size=config[Phase.TRAIN]["batch_size"])
     }
-    return loss_map[name]()
+    if name in loss_map:
+        return loss_map[name]()
+    else:
+        print("Warning: No loss function defined. Ignore this message for parameterless models.")
+        return lambda *args, **kwargs: None

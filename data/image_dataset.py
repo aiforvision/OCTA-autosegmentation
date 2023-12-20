@@ -11,46 +11,41 @@ from monai.data.meta_obj import set_track_meta
 from multiprocessing import cpu_count
 from math import ceil
 
-from utils.metrics import Task
+from utils.enums import Task
 from data.unalignedZipDataset import UnalignedZipDataset
+from utils.enums import Phase
 set_track_meta(False)
 
-def _get_transformation(config, task: Task, phase: str, dtype=torch.float32) -> Compose:
+def _get_transformation(config, phase: str, dtype=torch.float32) -> Compose:
     """
     Create and return the data transformations for 2D segmentation images the given phase.
     """
-    if task == Task.VESSEL_SEGMENTATION or task == Task.GAN_VESSEL_SEGMENTATION:
-        aug_config = config[phase.capitalize()]["data_augmentation"]
-        return Compose(get_data_augmentations(aug_config, dtype))
-    else:
-        raise NotImplementedError("Task: "+ task)
+    aug_config = config[phase]["data_augmentation"]
+    return Compose(get_data_augmentations(aug_config, config["General"]["seed"], dtype))
 
-def get_post_transformation(config: dict, phase: str) -> tuple[Compose]:
+def get_post_transformation(config: dict, phase: str) -> dict[str, Compose]:
     """
     Create and return the data transformation that is applied to the label and the model prediction before inference.
     """
-    aug_config: dict = config[phase.capitalize()]["post_processing"]
-    try:
-        pred_aug = Compose(get_data_augmentations(aug_config.get("prediction")))
-    except Exception as e:
-        print("Error: Your provided data augmentations for prediction are invalid.\n")
-        raise e
-    try:
-        label_aug = Compose(get_data_augmentations(aug_config.get("label")))
-    except Exception as e:
-        print("Error: Your provided data augmentations for label are invalid.\n")
-        raise e
-    return pred_aug, label_aug
+    aug_config: dict = config[phase]["post_processing"]
+    post_transformations = dict()
+    for k,v in aug_config.items():
+        try:
+            post_transformations[k] =  Compose(get_data_augmentations(v, seed=config["General"]["seed"]))
+        except Exception as e:
+            print("Error: Your provided data augmentations for prediction are invalid.\n")
+            raise e
+    return post_transformations
 
 
-def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoader:
+def get_dataset(config: dict[str, dict], phase: str, batch_size=None, num_workers=None) -> DataLoader:
     """
     Creates and return the dataloader for the given phase.
     """
     task = config["General"]["task"]
-    transform = _get_transformation(config, task, phase, dtype=torch.float16 if bool(config["General"].get("amp")) else torch.float32)
+    transform = _get_transformation(config, phase, dtype=torch.float16 if phase==Phase.TRAIN and bool(config["General"].get("amp")) else torch.float32)
 
-    data_settings: dict = config[phase.capitalize()]["data"]
+    data_settings: dict = config[phase]["data"]
     data = dict()
     for key, val in data_settings.items():
         paths = natsorted(glob(val["files"], recursive=True))
@@ -71,19 +66,16 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None) -> DataLoa
         for k,v in data.items():
             data[k] = np.resize(np.array(v), max_length).tolist()
         train_files = [dict(zip(data, t)) for t in zip(*data.values())]
+        data_set = Dataset(train_files, transform=transform)
     elif task == Task.GAN_VESSEL_SEGMENTATION:
-        if phase == "validation":
+        if phase == Phase.VALIDATION:
             max_length = max([len(l) for l in data.values()])
             for k,v in data.items():
                 data[k] = np.resize(np.array(v), max_length).tolist()
             train_files = [dict(zip(data, t)) for t in zip(*data.values())]
+            data_set = Dataset(train_files, transform=transform)
         else:
-            data_set = UnalignedZipDataset(data, transform, phase, config["General"]["inference"])
-            loader = DataLoader(data_set, batch_size=batch_size or config[phase.capitalize()].get("batch_size") or 1, shuffle=phase!="test", num_workers=8, pin_memory=torch.cuda.is_available())
-            return loader
+            data_set = UnalignedZipDataset(data, transform, phase)
 
-
-
-    data_set = Dataset(train_files, transform=transform)
-    loader = DataLoader(data_set, batch_size=batch_size or config[phase.capitalize()].get("batch_size") or 1, shuffle=phase!="test", num_workers=ceil(cpu_count()/2), pin_memory=torch.cuda.is_available())
+    loader = DataLoader(data_set, batch_size=batch_size or config[phase].get("batch_size") or 1, shuffle=phase!=Phase.TEST, num_workers=ceil(cpu_count()/2) if num_workers is None else num_workers, pin_memory=torch.cuda.is_available())
     return loader

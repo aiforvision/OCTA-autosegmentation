@@ -1,6 +1,7 @@
 from torch.utils.data import Dataset
 from monai.transforms import Compose
 import random
+from utils.enums import Phase
 
 class UnalignedZipDataset(Dataset):
     """
@@ -8,12 +9,12 @@ class UnalignedZipDataset(Dataset):
     It pairs synethic samples (real_A) with its corresponding label (real_A_seg),
     a random real sample (real_B) and a background noise image (background). 
     """
-    def __init__(self, data: dict, transform: Compose, phase = "train", inference="S") -> None:
+    def __init__(self, data: dict, transform: Compose, phase = Phase.TRAIN) -> None:
         super().__init__()
-        A_paths = data.get("real_A") if phase == "train" or inference == "G" else None
-        A_seg_paths = data.get("real_A_seg") if phase == "train" else None
-        B_paths = data.get("real_B")  if phase == "train" or inference == "S" else None
-        background = data.get("background") if phase == "train" or inference == "G" else None
+        A_paths = data.get("real_A")
+        A_seg_paths = data.get("real_A_seg")
+        B_paths = data.get("real_B")
+        background = data.get("background")
         self.A_paths = A_paths
         self.B_paths = B_paths
         self.A_seg_paths = A_seg_paths

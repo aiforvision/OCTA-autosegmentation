@@ -1,0 +1,198 @@
+---
+General:
+  amp: true
+  device: cuda:0
+  task: gan-ves-seg
+  inference: netG_A
+  model:
+    name: CycleGAN
+    netG_A_config:
+      name: resnetGenerator9
+    netG_B_config:
+      name: resnetGenerator9
+    netD_A_config: 
+      name: patchGAN70x70
+    netD_B_config: 
+      name: patchGAN70x70
+    lambda_idt: 1
+    lambda_A: 10
+    lambda_B: 10
+    pool_size: 50
+Train:
+  data:
+    real_B:
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/train_
+    real_A:
+      files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/*.csv
+    background:
+      files: /home/linus/repos/OCTA-seg/datasets/background_images/*.png
+  epochs: 100
+  epochs_decay: 0
+  save_interval: 25
+  val_interval: 200
+  batch_size: 4
+  lr: 0.0002
+  loss_criterionGAN: LSGANLoss
+  loss_criterionCycle: L1Loss
+  loss_criterionIdt: L1Loss
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - real_B
+      - background
+      image_only: true
+    - name: ToGrayScaled
+      keys:
+        - real_B
+    - name: LoadGraphAndFilterByRandomRadiusd
+      keys:
+        - real_A
+      image_resolutions: 
+        - [304,304] # for 304x304 images
+      min_radius: [0,0]
+      max_dropout_prob: 0.02
+      # radius_range: [0.0001, 0.0015]
+      # p_exp: 2
+    - name: EnsureChannelFirstd
+      keys:
+      - real_A
+      - real_B
+      - background
+      strict_check: false
+      channel_dim: no_channel
+    - name: Resized
+      keys:
+      - real_B
+      spatial_size:
+      - 304
+      - 304
+      # - 512
+      # - 512
+      mode: bilinear
+    - name: ScaleIntensityd
+      keys:
+      - real_A
+      - real_B
+      - background
+      minv: 0
+      maxv: 1
+    - name: RandFlipd
+      keys:
+      - real_A
+      prob: 0.5
+      spatial_axis:
+      - 0
+      - 1
+    - name: RandRotate90d
+      keys:
+      - real_A
+      prob: 0.75
+    - name: RandFlipd
+      keys:
+      - real_B
+      - background
+      prob: 0.5
+      spatial_axis:
+      - 0
+      - 1
+    - name: RandRotate90d
+      keys:
+      - real_B
+      - background
+      prob: 0.75
+    - name: RandRotated
+      keys:
+      - real_A
+      - real_B
+      - background
+      prob: 1
+      range_x: 0.17453292519943295
+      padding_mode: zeros
+    - name: CastToTyped
+      keys:
+      - real_A
+      - real_B
+      - background
+      dtype: dtype
+  post_processing:
+    prediction: 
+      - name: AsDiscrete
+        threshold: 0.5 # OCTA-500
+    label: 
+      - name: AsDiscrete
+        threshold: 0.5 # OCTA-500
+Test:
+  batch_size: 1
+  data:
+    real_B:
+      files: /home/linus/Datasets/OCTA/OCTA-500/processed/images/*.png
+      split: /home/linus/Datasets/OCTA/OCTA-500/processed/val_
+    real_A:
+      files: /home/linus/repos/OCTA-seg/datasets/vessel_graphs/*.csv
+    background:
+      files: /home/linus/repos/OCTA-seg/datasets/background_images/*.png
+  save_comparisons: false
+  data_augmentation:
+    - name: LoadImaged
+      keys:
+      - real_B
+      - background
+      allow_missing_keys: true
+      image_only: true
+    - allow_missing_keys: true
+      name: ToGrayScaled
+      keys:
+        - real_B
+    - name: LoadGraphAndFilterByRandomRadiusd
+      keys:
+        - real_A
+      image_resolutions: 
+        - [304,304]
+      allow_missing_keys: true
+    - name: ScaleIntensityd
+      keys:
+      - real_A
+      - real_B
+      - background
+      allow_missing_keys: true
+      minv: 0
+      maxv: 1
+    - name: EnsureChannelFirstd
+      keys:
+      - real_A
+      - real_B
+      - background
+      allow_missing_keys: true
+      channel_dim: no_channel
+      strict_check: false
+    - name: Rotate90d
+      allow_missing_keys: true
+      keys:
+      # - real_A
+      - real_B
+      - background
+      k: 1
+    - name: Flipd
+      allow_missing_keys: true
+      keys:
+      # - real_A
+      - real_B
+      - background
+      spatial_axis: 0
+    - name: AddRandomBackgroundNoised
+      keys:
+      - real_A
+    - name: CastToTyped
+      keys:
+      - real_A
+      - real_B
+      allow_missing_keys: true
+      dtype: dtype
+  post_processing:
+    prediction: null
+    label: null
+Output:
+  save_dir: /home/linus/repos/OCTA-seg/results/cycleGAN
+  save_to_disk: true
+  save_to_tensorboard: false

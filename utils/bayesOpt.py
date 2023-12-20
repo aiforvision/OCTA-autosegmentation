@@ -19,6 +19,7 @@ from ray.air import session, FailureConfig, RunConfig
 from ray.tune import CLIReporter
 import ConfigSpace as CS
 from ray.tune.search.bohb import TuneBOHB
+from utils.enums import Phase
 
 
 # Parse input arguments
@@ -39,18 +40,18 @@ with open(path, "r") as stream:
         CONFIG = yaml.safe_load(stream)
 
 def training_function(config: dict):
-    config["Validation"]["batch_size"]=1
-    config["Validation"]["post_processing"]["prediction"][0]["threshold"] = config["threshold"]
-    config["Validation"]["post_processing"]["prediction"][1]["min_size"] = config["min_size"]
+    config[Phase.VALIDATION]["batch_size"]=1
+    config[Phase.VALIDATION]["post_processing"]["prediction"][0]["threshold"] = config["threshold"]
+    config[Phase.VALIDATION]["post_processing"]["prediction"][1]["min_size"] = config["min_size"]
 
     task: Task = config["General"]["task"]
 
-    val_loader = get_dataset(config, 'validation')
-    post_pred, post_label = get_post_transformation(config, phase="validation")
+    val_loader = get_dataset(config, Phase.VALIDATION)
+    post_pred, post_label = get_post_transformation(config, phase=Phase.VALIDATION)
 
     device = torch.device(config["General"].get("device") or "cpu")
-    model = define_model(config, phase="val")
-    metrics = MetricsManager(task)
+    model = define_model(config, phase=Phase.VALIDATION)
+    metrics = MetricsManager()
 
     model.eval()
     # while True:
@@ -67,7 +68,7 @@ def training_function(config: dict):
             val_labels = [post_label(i) for i in decollate_batch(val_labels)]
             metrics(val_outputs, val_labels)
 
-        session.report(metrics.aggregate_and_reset("val")) 
+        session.report(metrics.aggregate_and_reset(Phase.VALIDATION)) 
 
 
 METRIC = 'val_DSC'

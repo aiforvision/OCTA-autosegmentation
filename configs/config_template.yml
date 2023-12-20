@@ -302,4 +302,4 @@ Output:
   # Mandatory - If true, store example images during training as images in the save files.
   save_to_disk: true
   # Mandatory - If true, store example images during training in tensorboard
-  save_to_tensorboard: true
+  save_to_tensorboard: false
