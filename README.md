@@ -16,6 +16,8 @@ We provide a docker file with a pretrained model to segment 3×3 mm² macular OC
 docker build . -t octa-seg
 ``` 
 #### 1. To **segment** a set of images, replace the placeholders with your directory paths and run:
+> [!NOTE]
+> If you are using Windows and the following commands fail, make sure to change the end of line sequence of the `./docker/dockershell.sh` file from `CRLF` to `LF` (unix style).
 ```sh
 docker run -v [DATASET_DIR]:/var/dataset -v [RESULT_DIR]:/var/segmented octa-seg segmentation
 ``` 

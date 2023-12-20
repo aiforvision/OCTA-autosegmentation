@@ -94,7 +94,11 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
             # Only load necessary network parts for inference
             model_prefix = config["General"].get("inference")
             model_prefix = model_prefix + "_" if model_prefix else "model_"
-            checkpoint = torch.load(model_path.replace('model.pth', f'{model_prefix}model.pth'), map_location=torch.device(config["General"]["device"]))
+            checkpoint_path = model_path.replace('model.pth', f'{model_prefix}model.pth')
+            if not os.path.exists(checkpoint_path):
+                # Legacy models
+                checkpoint_path = checkpoint_path.replace("model_", "")
+            checkpoint = torch.load(checkpoint_path, map_location=torch.device(config["General"]["device"]))
             config["General"]["inference"] = config["General"].get("inference") or "model"
             # Legacy compatibility
             config["General"]["inference"] = "segmentor" if config["General"]["inference"] == "S" else config["General"]["inference"]

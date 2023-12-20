@@ -1,6 +1,11 @@
 from abc import ABC, abstractmethod
 import torch
-from typing import Any, Tuple, Callable, TypedDict, NotRequired
+from typing import Any, Tuple, Callable, TypedDict
+import sys
+if sys.version_info < (3, 11):
+    from typing_extensions import NotRequired
+else:
+    from typing import NotRequired
 from utils.metrics import MetricsManager
 from utils.visualizer import Visualizer
 from torch.cuda.amp.grad_scaler import GradScaler
