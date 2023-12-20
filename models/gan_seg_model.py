@@ -46,10 +46,11 @@ class GanSegModel(BaseModelABC):
 
     @overrides(BaseModelABC)
     def initialize_model_and_optimizer(self, init_mini_batch: dict, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
-        self.loss_name_dg = config[Phase.TRAIN]["loss_dg"]
-        self.loss_name_s = config[Phase.TRAIN]["loss_s"]
-        self.dg_loss = get_loss_function_by_name(self.loss_name_dg, config)
-        self.s_loss = get_loss_function_by_name(self.loss_name_s, config)
+        if phase != Phase.TEST:
+            self.loss_name_dg = config[Phase.TRAIN]["loss_dg"]
+            self.loss_name_s = config[Phase.TRAIN]["loss_s"]
+            self.dg_loss = get_loss_function_by_name(self.loss_name_dg, config)
+            self.s_loss = get_loss_function_by_name(self.loss_name_s, config)
         super().initialize_model_and_optimizer(init_mini_batch, init_weights,config,args,scaler,phase)
 
     def forward(self, input: torch.Tensor):

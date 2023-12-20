@@ -57,14 +57,15 @@ class CycleGAN(BaseModelABC):
 
     @overrides(BaseModelABC)
     def initialize_model_and_optimizer(self, init_mini_batch: dict, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
-        self.loss_name_criterionGAN = config[Phase.TRAIN]["loss_criterionGAN"]
-        self.criterionGAN = get_loss_function_by_name(self.loss_name_criterionGAN, config)
+        if phase != Phase.TEST:
+            self.loss_name_criterionGAN = config[Phase.TRAIN]["loss_criterionGAN"]
+            self.criterionGAN = get_loss_function_by_name(self.loss_name_criterionGAN, config)
 
-        self.loss_name_criterionCycle = config[Phase.TRAIN]["loss_criterionCycle"]
-        self.criterionCycle = get_loss_function_by_name(self.loss_name_criterionCycle, config)
+            self.loss_name_criterionCycle = config[Phase.TRAIN]["loss_criterionCycle"]
+            self.criterionCycle = get_loss_function_by_name(self.loss_name_criterionCycle, config)
 
-        self.loss_name_criterionIdt= config[Phase.TRAIN]["loss_criterionIdt"]
-        self.criterionIdt = get_loss_function_by_name(self.loss_name_criterionIdt, config)
+            self.loss_name_criterionIdt= config[Phase.TRAIN]["loss_criterionIdt"]
+            self.criterionIdt = get_loss_function_by_name(self.loss_name_criterionIdt, config)
 
         super().initialize_model_and_optimizer(init_mini_batch,init_weights,config,args,scaler,phase)
 

@@ -83,13 +83,14 @@ class DCLGAN(BaseModelABC):
 
     @overrides(BaseModelABC)
     def initialize_model_and_optimizer(self, init_mini_batch: dict, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
-        self.loss_name_criterionGAN = config[Phase.TRAIN]["loss_criterionGAN"]
-        self.criterionGAN = get_loss_function_by_name(self.loss_name_criterionGAN, config)
+        if phase != Phase.TEST:
+            self.loss_name_criterionGAN = config[Phase.TRAIN]["loss_criterionGAN"]
+            self.criterionGAN = get_loss_function_by_name(self.loss_name_criterionGAN, config)
 
-        self.criterionCycle = torch.nn.L1Loss()
+            self.criterionCycle = torch.nn.L1Loss()
 
-        self.loss_name_criterionIdt= config[Phase.TRAIN]["loss_criterionIdt"]
-        self.criterionIdt = get_loss_function_by_name(self.loss_name_criterionIdt, config)
+            self.loss_name_criterionIdt= config[Phase.TRAIN]["loss_criterionIdt"]
+            self.criterionIdt = get_loss_function_by_name(self.loss_name_criterionIdt, config)
 
         if phase==Phase.TRAIN:
             self.loss_name_criterionNCE = config[Phase.TRAIN]["loss_criterionNCE"]

@@ -58,7 +58,7 @@ with Live(group, console=Console(force_terminal=True), refresh_per_second=10):
 
     with DynamicDisplay(group, Spinner("bouncingBall", text="Initializing model...")):
         model = define_model(config, phase=Phase.TEST)
-        model.initialize_model_and_optimizer(test_mini_batch, init_weights, config, args, scaler, phase=Phase.VALIDATION)
+        model.initialize_model_and_optimizer(test_mini_batch, init_weights, config, args, scaler, phase=Phase.TEST)
     predictions = []
 
     model.eval()
