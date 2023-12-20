@@ -15,7 +15,7 @@ from utils.enums import Phase
 from rich.live import Live
 from rich.progress import Progress, TimeElapsedColumn
 from rich.spinner import Spinner
-from rich.console import  Group
+from rich.console import  Group, Console
 group = Group()
 
 # Parse input arguments
@@ -48,7 +48,7 @@ device = torch.device(config["General"].get("device") or "cpu")
 scaler = torch.cuda.amp.GradScaler(enabled=False)
 # set_determinism(seed=0)
 
-with Live(group, refresh_per_second=10):
+with Live(group, console=Console(force_terminal=True), refresh_per_second=10):
     with DynamicDisplay(group, Spinner("bouncingBall", text="Loading test data...")):
         test_loader = get_dataset(config, Phase.TEST, num_workers=args.num_workers)
         post_transformations_test = get_post_transformation(config, Phase.TEST)
