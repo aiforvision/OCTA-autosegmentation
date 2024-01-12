@@ -19,11 +19,11 @@ docker build . -t octa-seg
 > [!NOTE]
 > If you are using Windows and the following commands fail, make sure to change the end of line sequence of the `./docker/dockershell.sh` file from `CRLF` to `LF` (unix style).
 ```sh
-docker run -v [DATASET_DIR]:/var/dataset -v [RESULT_DIR]:/var/segmented octa-seg segmentation
+docker run --rm -v [DATASET_DIR]:/var/dataset -v [RESULT_DIR]:/var/segmented octa-seg segmentation
 ``` 
 #### 2. **We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To **generate** _N_ more samples, run:
 ```sh
-docker run -v [RESULT_DIR]:/var/generation octa-seg generation [N]
+docker run --rm -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 ``` 
 
 ---
@@ -34,7 +34,7 @@ docker run -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 > [!NOTE]
 > This feature is still experimental!
 ```sh
-docker run -v [DATASET_DIR]:/var/segmented [RESULT_DIR]:/var/reconstructed octa-seg generation [N]
+docker run --rm -v [DATASET_DIR]:/var/segmented [RESULT_DIR]:/var/reconstructed octa-seg generation [N]
 ``` 
 
 # 🔵 Manual Installation

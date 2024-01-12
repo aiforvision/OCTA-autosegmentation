@@ -3,6 +3,7 @@ __pycache__
 
 datasets/
 results/
+results.zip
 **/debug*
 
 voreen/*
