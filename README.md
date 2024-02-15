@@ -1,5 +1,5 @@
 # Synthetic optical coherence tomography angiographs for detailed retinal vessel segmentation without human annotations
-This is the repository for the paper [Synthetic optical coherence tomography angiographs for detailed retinal vessel segmentation without human annotations (2023)](https://arxiv.org/abs/2306.10941)</b>.
+This is the repository for the paper [Synthetic optical coherence tomography angiographs for detailed retinal vessel segmentation without human annotations (2024)](https://doi.org/10.1109/TMI.2024.3354408)</b>.
 
 <div style="text-align:center">
     <img src="images/abstract.svg">
@@ -112,16 +112,18 @@ python test.py --config_file [PATH_TO_CONFIG_FILE] --epoch [EPOCH]
 ```
 
 # 🟢 Citation
-If you use this code for your research, please cite our [paper (preprint)](https://arxiv.org/abs/2306.10941):
+If you use this code for your research, please cite our [paper](https://doi.org/10.1109/TMI.2024.3354408):
 ```bib
-@misc{Kreitner2023,
+@ARTICLE{Kreitner2024,
+author={Kreitner, Linus and Paetzold, Johannes C. and Rauch, Nikolaus and Chen, Chen and Hagag, Ahmed M. and Fayed, Alaa E. and Sivaprasad, Sobha and Rausch, Sebastian and Weichsel, Julian and Menze, Bjoern H. and Harders, Matthias and Knier, Benjamin and Rueckert, Daniel and Menten, Martin J.},
+journal={IEEE Transactions on Medical Imaging}, 
 title={Synthetic optical coherence tomography angiographs for detailed retinal vessel segmentation without human annotations}, 
-author={Linus Kreitner and Johannes C. Paetzold and Nikolaus Rauch and Chen Chen and Ahmed M. Hagag and Alaa E. Fayed and Sobha Sivaprasad and Sebastian Rausch and Julian Weichsel and Bjoern H. Menze and Matthias Harders and Benjamin Knier and Daniel Rueckert and Martin J. Menten},
-year={2023},
-eprint={2306.10941}, 
-archivePrefix={arXiv},
-primaryClass={eess.IV},
-url = {https://doi.org/10.48550/arXiv.2306.10941}
+year={2024},
+volume={},
+number={},
+pages={1-1},
+doi={10.1109/TMI.2024.3354408}
+url={https://doi.org/10.1109/TMI.2024.3354408}
 }
 ```
 
