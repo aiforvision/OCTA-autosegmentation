@@ -107,9 +107,9 @@ Test:
       # split: /ABSOLUTE/PATH/TO/OCTA/val_0.txt
   save_comparisons: false
   data_augmentation:
-    - name: LoadImaged
+  - name: LoadImaged
     keys:
-      - image
+    - image
     image_only: true
   - name: ScaleIntensityd
     keys:

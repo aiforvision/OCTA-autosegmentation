@@ -1,6 +1,6 @@
 General:
   amp: false
-  device: cpu
+  device: cuda:0
   inference: model
   model:
     in_channels: 1
@@ -28,7 +28,7 @@ General:
   seed: 396513
   task: ves-seg
 Output:
-  save_dir: /home/OCTA-seg/docker/trained_models/reconstruction_3d
+  save_dir: ./docker/trained_models/reconstruction_3d
   save_interval: 1
   save_to_disk: true
   save_to_tensorboard: false
@@ -36,7 +36,7 @@ Test:
   batch_size: 1
   data:
     image:
-      files: /var/segmented/**/*.png
+      files: /ABSOLUTE/PATH/TO/2D/SEGMENTATION/FOLDER/**/*.png
   data_augmentation:
   - name: LoadImaged
     keys:
@@ -68,7 +68,7 @@ Test:
     keys:
     - image
     name: CastToTyped
-  model_path: /home/OCTA-seg/docker/trained_models/reconstruction_3d/60_model_model.pth
+  model_path: ./docker/trained_models/reconstruction_3d/60_model_model.pth
   post_processing:
     prediction:
     - name: Activations
@@ -78,4 +78,4 @@ Test:
     - name: RemoveOuterNoise
     - channel_dim: 0
       name: AsChannelLast
-  save_dir: /var/reconstructed
+  save_dir: ./results/3d_reconstruction

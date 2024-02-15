@@ -137,8 +137,6 @@ Train:
       - name: RemoveSmallObjects
         min_size: 160
     label: null
-Validation:
-  batch_size: 4
 Test:
   batch_size: 1
   data:

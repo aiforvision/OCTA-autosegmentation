@@ -12,7 +12,7 @@ from utils.enums import Phase
 
 class LambdaModel(BaseModelABC):
 
-    def __init__(self, model_name: str, phase: Phase, MODEL_DICT: dict, inference: str, **kwargs) -> None:
+    def __init__(self, model_name: str, phase: Phase, MODEL_DICT: dict, inference: str="model", **kwargs) -> None:
         super().__init__(optimizer_mapping={"optimizer": ["model"]})
         self.model = MODEL_DICT[model_name](**kwargs)
 
