@@ -34,7 +34,7 @@ docker run --rm -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 > [!NOTE]
 > This feature is still experimental!
 ```sh
-docker run --rm -v [DATASET_DIR]:/var/segmented [RESULT_DIR]:/var/reconstructed octa-seg generation [N]
+docker run --rm -v [DATASET_DIR]:/var/segmented -v [RESULT_DIR]:/var/reconstructed octa-seg 3d_reconstruction
 ``` 
 
 # 🔵 Manual Installation
