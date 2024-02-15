@@ -123,7 +123,7 @@ def train(args: argparse.Namespace, config: dict[str,dict]):
             if val_loader is not None and (epoch + 1) % val_interval == 0:
                 model.eval()
                 val_loss = 0
-                progress.add_task("Validation Batch", total=min(len(val_loader),40))
+                progress.add_task("Validation Batch", total=len(val_loader))
                 with torch.no_grad():
                     step = 0
                     for val_mini_batch in val_loader:

@@ -41,12 +41,10 @@ docker run --rm -v [DATASET_DIR]:/var/segmented [RESULT_DIR]:/var/reconstructed 
 The following section explains how to prepare your environment to run the experiments from the paper, or new experiments. 
 
 ### Installation
-Make sure you have a clean [conda](https://docs.conda.io/en/main/miniconda.html) environment with python 3 and [pytorch](https://pytorch.org/get-started/locally/) (tested with python 3.10, pytorch==2.0.1, and torchvision==0.15.2). Install the remaining required packages:
+Make sure you have a clean [conda](https://docs.conda.io/en/main/miniconda.html) environment with python 3 and [pytorch](https://pytorch.org/get-started/locally/) (tested with python 3.11, pytorch==2.0.1, and torchvision==0.15.2). Install the remaining required packages:
  ```sh
 pip install -r requirements.txt
  ```
- > [!IMPORTANT]
- > Package `open3d` is currently (Nov 22, 2023) not available for python 3.11 yet
 
 
 ### Synthetic Dataset
