@@ -127,7 +127,7 @@ Test:
     keys:
     - image
     strict_check: false
-      channel_dim: no_channel
+    channel_dim: no_channel
   - name: Rotate90d
     keys:
     - image
@@ -147,17 +147,17 @@ Test:
       # threshold: 0.578 # ROSE
       # threshold: 0.65 # OCTA-500
     - name: RemoveSmallObjects
-      min_size: 80 # Giarratano
+      # min_size: 80 # Giarratano
       # min_size: 42 # ROSE-1
-      # min_size: 40 # OCTA-500
+      min_size: 40 # OCTA-500
     - name: Resize
       spatial_size:
         # Giarratano
-        - 360
-        - 360
+        # - 360
+        # - 360
         # OCTA-500 and ROSE-1
-        # - 1216
-        # - 1216
+        - 1216
+        - 1216
       mode: bilinear
     - name: AsDiscrete
       threshold: 0.5

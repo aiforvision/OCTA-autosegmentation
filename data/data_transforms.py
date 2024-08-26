@@ -34,56 +34,33 @@ class SpeckleBrightnesd(MapTransform):
             data[key] = img
         return data
     
-class MentenAugmentationd(MapTransform):
+class BinomialVesselNoised(MapTransform):
     """
-    Applies Brightness, binomial noise, quantum noise, Vitreous floater artifacts, and motion artifacts as described in:
-
-    Physiology-Based Simulation of the Retinal Vasculature Enables Annotation-Free Segmentation of OCT Angiographs
-    Martin J. Menten, Johannes C. Paetzold, Alina Dima, Bjoern H. Menze, Benjamin Knier & Daniel Rueckert
-    MICCAI 2022
-    https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32
+    Binomial noise component of our noise model. Randomly add vessel-like noise to the image.
     """
-    def __init__(self, img_key: str, gt_key: str) -> None:
-        super().__init__(keys=[img_key, gt_key], allow_missing_keys=False)
-        self.img_key = img_key
-        self.gt_key = gt_key
+    def __init__(self, keys: KeysCollection, allow_missing_keys: bool = False, vessel_noise_scaling = 0.5, vessel_noise_blur = 1.0, r=48) -> None:
+        super().__init__(keys, allow_missing_keys)
+        self.vessel_noise_scaling = vessel_noise_scaling
+        self.vessel_noise_blur = vessel_noise_blur
+        self.r = r
 
-    def __call__(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
-        img = data[self.img_key]
-        img_shape = img.shape
-        img = img.squeeze().numpy()
-
-        gt = data[self.gt_key]
-        gt_shape = gt.shape
-        gt = gt.squeeze().numpy()
-
-        img, gt = self.augment(img,gt)
-        data[self.img_key] = torch.tensor(img).view(img_shape)
-        data[self.gt_key] = torch.tensor(gt).view(gt_shape)
-        return data
-    
-    def augment(self, img: np.ndarray, gt: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    def add_noise(self, img: np.ndarray, vessel_noise_scaling = 0.5, vessel_noise_blur = 1.0, r=48) -> Tuple[np.ndarray, np.ndarray]:
         """
         Parameters:
         -----------
         - img: Numpy array of 2d grayscale image
-        - gt: Numpy array of high resolution grayscale label
-        
+        - vessel_noise_scaling (float): Scaling factor for vessel noise
+        - vessel_noise_blur (float): Blurring factor for vessel noise
+        - r (int): Radius of the vessel noise
+
         Returns:
         --------
         - img: Augmented numpy array of 2d grayscale image
-        - gt: Adjusted numpy array of high resolution grayscale label
         """
-        # Scale brightness
-        img = np.clip(img * 0.8, 0.0, 1.0)
-
         # Vessel noise
-        vessel_noise_scaling = 0.5
-        vessel_noise_blur = 1.0
         vessel_noise = np.random.binomial(1, 0.1, size=img.shape)
         vessel_noise = binary_dilation(vessel_noise, iterations=1).astype(float)
 
-        r = 48
         for i in range(vessel_noise.shape[0]):
             for j in range(vessel_noise.shape[1]):
                 if np.sqrt((i - vessel_noise.shape[0]/2) ** 2 + (j - vessel_noise.shape[1]/2) ** 2) < r:
@@ -105,10 +82,61 @@ class MentenAugmentationd(MapTransform):
 
         # Add noth noise sources to image
         img = np.clip((img + vessel_noise + quantum_noise) / (1.0 + vessel_noise_scaling/1.5), 0.0, 1.0)
+        return img
 
+    def __call__(self, data):
+        for key in self.keys:
+            if key in data or not self.allow_missing_keys:
+                img: torch.Tensor = data[key]
+                img_shape = img.shape
+                img = img.squeeze().numpy()
+                img = self.add_noise(img, self.vessel_noise_scaling, self.vessel_noise_blur, self.r)
+                data[key] = torch.tensor(img).view(img_shape)
+        return data
+    
+class AddVitreousFloater(MapTransform):
+    def __init__(self, keys: KeysCollection, allow_missing_keys: bool = False,
+            floater_chance: float = 0.1,
+            floater_opacity_interval: tuple[float,float]=(0.5, 1.0),
+            floater_segments_interval: tuple[int,int]=(10, 20),
+            dilations_interval: tuple[int,int] = (10, 30)) -> None:
+        super().__init__(keys, allow_missing_keys)
+        self.floater_chance = floater_chance
+        self.floater_opacity_interval = floater_opacity_interval
+        self.floater_segments_interval = floater_segments_interval
+        self.dilations_interval = dilations_interval
+
+    def __call__(self, data):
+        for key in self.keys:
+            if key in data or not self.allow_missing_keys:
+                img: torch.Tensor = data[key]
+                img_shape = img.shape
+                img = img.squeeze().numpy()
+                img = self.add_vitreous_floater(img, self.floater_chance, self.floater_opacity_interval, self.floater_segments_interval, self.dilations_interval)
+                data[key] = torch.tensor(img).view(img_shape)
+        return data
+
+    def add_vitreous_floater(self,
+            img: np.ndarray,
+            floater_chance: float = 0.1,
+            floater_opacity_interval: tuple[float,float]=(0.5, 1.0),
+            floater_segments_interval: tuple[int,int]=(10, 20),
+            dilations_interval: tuple[int,int] = (10, 30)
+        ) -> np.ndarray:
+        """
+        Parameters:
+        -----------
+        - img: Numpy array of 2d grayscale image
+        - floater_chance (float): Chance of adding a floater
+        - floater_opacity_interval (tuple): Interval for floater opacity
+        - floater_segments_interval (tuple): Interval for floater segments
+        - dilations_interval (tuple): Interval for floater dilations
+
+        Returns:
+        --------
+        - img: Augmented numpy array of 2d grayscale image
+        """
         # Vitreous floater artifacts
-        floater_chance = 0.1
-
         if np.random.uniform() < floater_chance:
             size_x = img.shape[1]
             size_y = img.shape[0]
@@ -122,9 +150,9 @@ class MentenAugmentationd(MapTransform):
             points = []
             points.append(current_point)
 
-            floater_opacity = np.random.uniform(0.5, 1.0)
+            floater_opacity = np.random.uniform(*floater_opacity_interval)
 
-            floater_segments = np.random.randint(10, 20)
+            floater_segments = np.random.randint(*floater_segments_interval)
 
             for i in range(floater_segments):
 
@@ -142,27 +170,95 @@ class MentenAugmentationd(MapTransform):
 
                 current_point = next_point
 
-            dilations = np.random.randint(10, 30)
+            dilations = np.random.randint(*dilations_interval)
             floater = binary_dilation(floater, iterations=dilations).astype(float)
             floater = gaussian_filter(floater, 10)
 
             img = img * (1 - floater)
+        return img
 
+class AddMotionArtifact(MapTransform):
+    def __init__(self, img_key, gt_key,
+           artifacts: dict[str,float] = {
+                'shear': 0.3,
+                'stretch': 0.3,
+                'buckle': 0.3,
+                'whiteout': 0.1
+            },
+            grace_margin: int = 10,
+            max_shear: int = 5,
+            max_stretch: int = 5,
+            max_buckle: int = 5,
+            max_whiteout: int = 1,
+            no_h_cuts: int = 3) -> None:
+        super().__init__([img_key, gt_key], False)
+        self.img_key = img_key
+        self.gt_key = gt_key
+        self.artifacts = artifacts
+        self.grace_margin = grace_margin
+        self.max_shear = max_shear
+        self.max_stretch = max_stretch
+        self.max_buckle = max_buckle
+        self.max_whiteout = max_whiteout
+        self.no_h_cuts = no_h_cuts
 
+    def __call__(self, data):
+        img: torch.Tensor = data[self.img_key]
+        img_shape = img.shape
+        img = img.squeeze().numpy()
+
+        gt: torch.Tensor = data[self.gt_key]
+        gt_shape = gt.shape
+        gt = gt.squeeze().numpy()
+
+        img, gt = self.add_motion_artifact(img, gt, self.artifacts, self.grace_margin, self.max_shear, self.max_stretch, self.max_buckle, self.max_whiteout)
+        
+        data[self.img_key] = torch.tensor(img).view(img_shape)
+        data[self.gt_key] = torch.tensor(gt).view(gt_shape)
+        return data
+    
+    def add_motion_artifact(self,
+            img: np.ndarray,
+            gt: np.ndarray,
+            artifacts: dict[str,float] = {
+                'shear': 0.3,
+                'stretch': 0.3,
+                'buckle': 0.3,
+                'whiteout': 0.1
+            },
+            grace_margin: int = 10,
+            max_shear: int = 5,
+            max_stretch: int = 5,
+            max_buckle: int = 5,
+            max_whiteout: int = 1,
+            no_h_cuts: int = 3
+        ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Parameters:
+        -----------
+        - img: Numpy array of 2d grayscale image
+        - gt: Numpy array of high resolution grayscale label
+        - artifacts (dict): Dictionary of motion artifacts and their probabilities. Choose from 'shear', 'stretch', 'buckle', 'whiteout'
+        - grace_margin (int): Margin around the image where no artifacts are added
+        - max_shear (int): Maximum shear value
+        - max_stretch (int): Maximum stretch value
+        - max_buckle (int): Maximum buckle value
+        - max_whiteout (int): Maximum whiteout value
+        - no_h_cuts (int): Maximum number of horizontal cuts
+
+        Returns:
+        --------
+        - img: Augmented numpy array of 2d grayscale image
+        - gt: Adjusted numpy array of high resolution grayscale label
+        """
         # Motion and decorrelation artifacts
-        grace_margin = 10
-        max_shear = 5
-        max_stretch = 5
-        max_buckle = 5
-        max_whiteout = 1
-
-        no_h_cuts = np.random.randint(0, 3)
+        no_h_cuts = np.random.randint(0, no_h_cuts)
 
         for h_cut in range(no_h_cuts):
 
             temp_img = img.copy()
             temp_gt = gt.copy()
-            artifact = np.random.choice(['shear', 'stretch', 'buckle', 'whiteout'], p=[0.3, 0.3, 0.3, 0.1])
+            artifact = np.random.choice(list(artifacts.keys()), p=list(artifacts.values()))
             position = np.random.randint(grace_margin, temp_img.shape[0] - grace_margin)
 
             if artifact == 'shear':
@@ -196,8 +292,30 @@ class MentenAugmentationd(MapTransform):
             elif artifact == 'whiteout':
                 whiteout = np.random.randint(1, max_whiteout + 1)
                 img[position:position + whiteout, :] = np.random.uniform(0.5, 1.0, size=(whiteout, temp_img.shape[1]))
-
         return img, gt
+
+class MentenAugmentationd(MapTransform):
+    """
+    Applies Brightness, binomial noise, quantum noise, Vitreous floater artifacts, and motion artifacts as described in:
+
+    Physiology-Based Simulation of the Retinal Vasculature Enables Annotation-Free Segmentation of OCT Angiographs
+    Martin J. Menten, Johannes C. Paetzold, Alina Dima, Bjoern H. Menze, Benjamin Knier & Daniel Rueckert
+    MICCAI 2022
+    https://link.springer.com/chapter/10.1007/978-3-031-16452-1_32
+    """
+    def __init__(self, img_key: str, gt_key: str) -> None:
+        super().__init__(keys=[img_key, gt_key], allow_missing_keys=False)
+        self.img_key = img_key
+        self.gt_key = gt_key
+        self.binomialVesselNoised = BinomialVesselNoised([img_key], allow_missing_keys=True)
+        self.vitreousFloater = AddVitreousFloater([img_key], allow_missing_keys=True)
+        self.add_motion_artifact = AddMotionArtifact(img_key, gt_key)
+
+    def __call__(self, data: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        data = self.binomialVesselNoised(data)
+        data = self.vitreousFloater(data)
+        data = self.add_motion_artifact(data)
+        return data
 
 class ImageToImageTranslationd(MapTransform):
     """

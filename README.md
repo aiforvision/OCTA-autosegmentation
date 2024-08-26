@@ -36,6 +36,7 @@ docker run --rm -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 ```sh
 docker run --rm -v [DATASET_DIR]:/var/segmented -v [RESULT_DIR]:/var/reconstructed octa-seg 3d_reconstruction
 ``` 
+If you encounter the following eror `ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).`, try to increase the shared memory size, e.g., `docker run --shm-size 2gb --rm ...`.
 
 # 🔵 Manual Installation
 The following section explains how to prepare your environment to run the experiments from the paper, or new experiments. 

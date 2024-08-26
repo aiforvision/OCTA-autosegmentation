@@ -156,6 +156,7 @@ class BaseModelABC(nn.Module, ModelInterface, ABC):
             device: torch.device = "cpu"
         ) -> Tuple[Output, dict[str, float]]:
         self.optimizer: torch.optim.Optimizer
+        self.optimizer.zero_grad()
         with torch.cuda.amp.autocast():
             outputs, losses = self.inference(mini_batch, post_transformations, device, phase=Phase.TRAIN)
             loss = sum(list(losses.values()))
