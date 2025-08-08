@@ -1,6 +1,6 @@
 # Code from https://github.com/jocpae/clDice
 
-from skimage.morphology import skeletonize, skeletonize_3d
+from skimage.morphology import skeletonize
 import numpy as np
 
 def cl_score(v, s):
@@ -30,6 +30,6 @@ def clDice(v_p, v_l):
         tprec = cl_score(v_p,skeletonize(v_l))
         tsens = cl_score(v_l,skeletonize(v_p))
     elif len(v_p.shape)==3:
-        tprec = cl_score(v_p,skeletonize_3d(v_l))
-        tsens = cl_score(v_l,skeletonize_3d(v_p))
+        tprec = cl_score(v_p,skeletonize(v_l, method="lee"))
+        tsens = cl_score(v_l,skeletonize(v_p, method="lee"))
     return 2*tprec*tsens/(tprec+tsens)

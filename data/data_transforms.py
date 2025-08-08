@@ -1,19 +1,26 @@
-import torch
+import csv
+import pickle
 import random
-from PIL import Image
-from models.noise_model import NoiseModel
+from typing import Tuple
+
 import numpy as np
+import torch
+from models.networks import MODEL_DICT
+from models.noise_model import NoiseModel
+from monai.config import KeysCollection
+from monai.transforms import *  # noqa: F403
+from monai.transforms import (
+    KeepLargestConnectedComponent,
+    MapTransform,
+    Randomizable,
+    Transform,
+)
+from PIL import Image
 from scipy.ndimage import binary_dilation, gaussian_filter
 from skimage.draw import line
-import csv 
-from typing import Tuple
-import pickle
-
-from monai.transforms import *
-from monai.config import KeysCollection
-from vessel_graph_generation.tree2img import rasterize_forest
-from models.networks import MODEL_DICT
 from utils.enums import Phase
+from vessel_graph_generation.tree2img import rasterize_forest
+
 
 class SpeckleBrightnesd(MapTransform):
     """
@@ -595,6 +602,8 @@ def get_data_augmentations(aug_config: list[dict], seed: int, dtype=torch.float3
                 aug_d["dtype"] = types
             else:
                 aug_d["dtype"] = types[0]
+        if aug_name.startswith("Lambda"):
+            aug_d["func"] = eval(aug_d["func"])
         aug_obj = aug(**aug_d)
         if isinstance(aug_obj, Randomizable):
             aug_obj.set_random_state(seed=seed)

@@ -19,3 +19,4 @@ TODO.md
 vessel_graph_generation/runs
 
 **/*.code-workspace
+uv.lock

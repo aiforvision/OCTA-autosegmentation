@@ -45,7 +45,7 @@ if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
 device = torch.device(config["General"].get("device") or "cpu")
-scaler = torch.cuda.amp.GradScaler(enabled=False)
+scaler = torch.amp.GradScaler(enabled=False)
 # set_determinism(seed=0)
 
 with Live(group, console=Console(force_terminal=True), refresh_per_second=10):
@@ -77,7 +77,7 @@ with Live(group, console=Console(force_terminal=True), refresh_per_second=10):
                 image_name: str = test_mini_batch[f"{input_key}_path"][0].split("/")[-1]
                 
                 # plot_single_image(save_dir, inputs[0], image_name)
-                plot_single_image(save_dir, outputs["prediction"][0], inference_mode + "_" + image_name)
+                plot_single_image(save_dir, outputs["prediction"][0].cpu(), inference_mode + "_" + image_name)
                 if config["Output"].get("save_comparisons"):
-                    plot_sample(save_dir, test_mini_batch[input_key][0], outputs["prediction"][0], None, test_mini_batch[f"{input_key}_path"][0], suffix=f"{inference_mode}_{image_name}", full_size=True)
+                    plot_sample(save_dir, test_mini_batch[input_key][0], outputs["prediction"][0].cpu(), None, test_mini_batch[f"{input_key}_path"][0], suffix=f"{inference_mode}_{image_name}", full_size=True)
                 progress.advance(task_id=0)
