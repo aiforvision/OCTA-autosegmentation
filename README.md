@@ -28,16 +28,6 @@ docker run --rm -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 
 ---
 
-
-
-#### 3. Generate a **3D reconstruction** of your 2D segmentation map. Results will be given as Nifti file.
-> [!NOTE]
-> This feature is still experimental!
-```sh
-docker run --rm -v [DATASET_DIR]:/var/segmented -v [RESULT_DIR]:/var/reconstructed octa-seg 3d_reconstruction
-``` 
-If you encounter the following eror `ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).`, try to increase the shared memory size, e.g., `docker run --shm-size 2gb --rm ...`.
-
 # 🔵 Manual Installation
 The following section explains how to prepare your environment to run the experiments from the paper, or new experiments. 
 
@@ -73,6 +63,13 @@ We provide a pretrained GAN model and segmentation model trained for the OCTA-50
 We provide two jupyter notebooks with a step-by-step explanation on how to use this repository.
 1. [example_custom_vessel_simulation.ipynb](./example_custom_vessel_simulation.ipynb) shows how you can customize the vessel simulation to your needs. We create a toy configuration that simulates 12x12 mm² OCTA images.
 2. [example_train_gan-seg_with_new_dataset.ipynb](./example_train_gan-seg_with_new_dataset.ipynb) explains how you can train a new GAN and segmentation model tailored to your own dataset. This will boost segmentation performance notably if your dataset has a different contrast that the OCTA-500 dataset. 
+
+## ROI Cropping
+We provide a utility script to crop regions of interest (ROI) from OCTA images. The script automatically detects the ROI location and crops images to a specified size, with intelligent handling of directory structures:
+
+```sh
+python ROI_cropping.py --input_dir [INPUT_DIRECTORY] --output_dir [OUTPUT_DIRECTORY] --roi_size [ROI_SIZE]
+```
 
 ## General info
 Experiments are organized via config.yml files. We provide several predefined config files under `./configs` for the experiments shown in the paper. Please refer to the respective [README](configs/README.md) for more information.
