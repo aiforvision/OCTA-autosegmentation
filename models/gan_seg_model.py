@@ -20,6 +20,7 @@ class GanSegModel(BaseModelABC):
         compute_identity_seg=True,
         phase: Phase=Phase.TRAIN,
         inference: str=None,
+        upshape: Tuple[int,int] = (1216,1216),
         **kwargs):
         super().__init__(optimizer_mapping={
             "optimizer_G": ["generator"],
@@ -43,6 +44,7 @@ class GanSegModel(BaseModelABC):
         self.compute_identity = compute_identity
         self.compute_identity_seg = compute_identity_seg
         self.criterionIdt = torch.nn.L1Loss()
+        self.upshape = upshape
 
     @overrides(BaseModelABC)
     def initialize_model_and_optimizer(self, init_mini_batch: dict, init_weights: Callable, config: dict, args, scaler, phase: Phase=Phase.TRAIN):
@@ -55,8 +57,8 @@ class GanSegModel(BaseModelABC):
 
     def forward(self, input: torch.Tensor):
         if self.segmentor is not None:
-            up_shape = (8*int(input.shape[2] / 2), 8*int(input.shape[3] / 2))
-            return self.segmentor(torch.nn.functional.interpolate(input, size=up_shape, mode="bilinear"))
+            # up_shape = (8*int(input.shape[2] / 2), 8*int(input.shape[3] / 2))
+            return self.segmentor(torch.nn.functional.interpolate(input, size=self.upshape, mode="bilinear"))
         else:
             return self.generator(input)
     
@@ -95,7 +97,7 @@ class GanSegModel(BaseModelABC):
         self.discriminator.requires_grad_(False)
         pred_fake_B = self.discriminator(fake_B)
 
-        up_shape = (min(1216,8*int(real_B.shape[2] / 2)), min(1216,8*int(real_B.shape[3] / 2)))
+        up_shape = self.upshape
         real_B_seg = self.segmentor(torch.nn.functional.interpolate(real_B, size=up_shape, mode="bilinear"))
         if self.compute_identity_seg:
             idt_B_seg = self.segmentor(torch.nn.functional.interpolate(idt_B, size=up_shape, mode="bilinear"))

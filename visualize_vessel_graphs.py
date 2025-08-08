@@ -1,25 +1,27 @@
 import argparse
+import concurrent.futures
 import csv
-import numpy as np
-import sys
 import os
 import pickle
-import nibabel as nib
-import concurrent.futures
+import sys
+from glob import glob
 from multiprocessing import cpu_count
-from rich.console import  Group, Console
+
+import nibabel as nib
+import numpy as np
+from natsort import natsorted
+from PIL import Image
+from rich.console import Console, Group
 from rich.live import Live
 from rich.progress import Progress, TimeElapsedColumn
 from utils.visualizer import DynamicDisplay
+from vessel_graph_generation.tree2img import rasterize_forest, voxelize_forest
+
 group = Group()
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.dirname(SCRIPT_DIR))
 
-from glob import glob
-from natsort import natsorted
-from PIL import Image
-from vessel_graph_generation.tree2img import rasterize_forest, voxelize_forest
 
 """
 You can use this script to visualize previously generated vessel graphs in your requested resolution.
@@ -76,15 +78,16 @@ if __name__ == "__main__":
             vol,black_dict = voxelize_forest(f, resolution, max_dropout_prob=args.max_dropout_prob, ignore_z=args.ignore_z)
             if args.binarize:
                 name+="_3d_label"
-                vol[vol<0.1]=0
-                vol[vol>=0.1]=1
-                vol = vol.astype(np.bool_)
+                vol[vol<0.1]=0.
+                vol[vol>=0.1]=1.
             else:
                 name+="_3d"
             if args.save_3d_as == ".nii.gz":
                 nifti = nib.Nifti1Image(vol, np.eye(4))
                 nib.save(nifti, os.path.join(args.out_dir, name+".nii.gz"))
             else:
+                if args.binarize:
+                    vol = vol.astype(np.bool_)
                 np.save(os.path.join(args.out_dir, name+".npy"), vol.astype(np.bool_))
             if args.max_dropout_prob>0:
                 with open(os.path.join(args.out_dir, name+"_blackdict.pkl"), 'wb') as file:

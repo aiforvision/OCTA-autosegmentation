@@ -66,7 +66,6 @@ def rasterize_forest(forest: list[dict],
         radius = float(edge["radius"])
         if radius<min_radius or radius>max_radius:
             continue
-        radius *= 1.3
 
         if isinstance(edge["node1"], np.ndarray) or isinstance(edge["node1"], list):
             current_node = tuple(edge["node1"])
@@ -80,6 +79,7 @@ def rasterize_forest(forest: list[dict],
             blackdict[current_node] = True
             continue
 
+        radius *= 1.3
         radius_list.append(radius)
         thickness = radius * scale_factor
         edges.append([(current_node[axes[1]],current_node[axes[0]]),(proximal_node[axes[1]],proximal_node[axes[0]])])
