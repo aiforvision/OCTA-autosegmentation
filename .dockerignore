@@ -1,6 +1,36 @@
-results/
+# VCS
+.git
+.github
+.gitattributes
+.gitignore
+
+# Python caches and virtualenvs
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+.python-version
+
+# Editors/IDE
+.vscode/
+*.code-workspace
+OCTA-seg.code-workspace
+
+# Data and outputs
 datasets/
 !datasets/background_images/
 !datasets/visualize_vessel_graphs.py
+results/
+results.zip
+vessel_graph_generation/runs
+**/debug*
 debug.*
+*.err
+*.out
+
+# Images and notebooks
 images/*
+!images/*.svg
+*.ipynb
