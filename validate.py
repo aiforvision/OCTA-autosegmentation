@@ -1,21 +1,21 @@
 import argparse
 import json
-import torch
 import os
-import yaml
 
+import torch
+import yaml
+from data.image_dataset import get_dataset, get_post_transformation
 from models.model import define_model
 from models.networks import init_weights
-
-from data.image_dataset import get_dataset, get_post_transformation
-from utils.metrics import MetricsManager
-from utils.enums import Phase
-from utils.visualizer import DynamicDisplay
-
+from rich.console import Group
 from rich.live import Live
 from rich.progress import Progress, TimeElapsedColumn
 from rich.spinner import Spinner
-from rich.console import  Group
+from utils.config_overrides import apply_cli_overrides_from_unknown_args
+from utils.enums import Phase
+from utils.metrics import MetricsManager
+from utils.visualizer import DynamicDisplay
+
 group = Group()
 
 # Parse input arguments
@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(description='')
 parser.add_argument('--config_file', type=str, required=True)
 parser.add_argument('--epoch', type=str, default='best')
 parser.add_argument('--num_workers', type=int, default=None, help="Number of cpu cores used for dataloading. By, use half of the available cores.")
-args = parser.parse_args()
+args, _unknown_args = parser.parse_known_args()
 
 # Read config file
 path: str = os.path.abspath(args.config_file)
@@ -33,6 +33,9 @@ with open(path, "r") as stream:
         config = json.load(stream)
     else:
         config = yaml.safe_load(stream)
+
+# Apply CLI overrides before using config
+apply_cli_overrides_from_unknown_args(config, _unknown_args)
 
 config[Phase.VALIDATION]["batch_size"]=1
 

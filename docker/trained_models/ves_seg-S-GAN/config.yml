@@ -27,7 +27,7 @@ General:
   seed: 79902
   task: ves-seg
 Output:
-  save_dir: /home/OCTA-seg/docker/trained_models/ves_seg-S-GAN
+  save_dir: ./docker/trained_models/ves_seg-S-GAN
   save_to_disk: true
   save_to_tensorboard: false
 Test:
@@ -72,7 +72,6 @@ Test:
     keys:
     - image
     name: CastToTyped
-  model_path: /home/OCTA-seg/docker/trained_models/ves_seg-S-GAN/checkpoints/30_model.pth
   post_processing:
     label:
     - dtype: uint8

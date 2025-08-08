@@ -1,21 +1,21 @@
 import argparse
 import json
-import torch
 import os
 
-from monai.utils import set_determinism
+import torch
 import yaml
+from data.image_dataset import get_dataset, get_post_transformation
 from models.model import define_model
 from models.networks import init_weights
-from data.image_dataset import get_dataset, get_post_transformation
-
-from utils.visualizer import plot_sample, plot_single_image, DynamicDisplay
-from utils.enums import Phase
-
+from monai.utils import set_determinism
+from rich.console import Console, Group
 from rich.live import Live
 from rich.progress import Progress, TimeElapsedColumn
 from rich.spinner import Spinner
-from rich.console import  Group, Console
+from utils.config_overrides import apply_cli_overrides_from_unknown_args
+from utils.enums import Phase
+from utils.visualizer import DynamicDisplay, plot_sample, plot_single_image
+
 group = Group()
 
 # Parse input arguments
@@ -24,7 +24,9 @@ parser.add_argument('--config_file', type=str, required=True)
 parser.add_argument('--epoch', type=str, default="best")
 parser.add_argument('--num_samples', type=int, default=9999999)
 parser.add_argument('--num_workers', type=int, default=None, help="Number of cpu cores used for dataloading. By, use half of the available cores.")
-args = parser.parse_args()
+
+# Parse known and unknown args to allow dynamic overrides like --Test.save_dir /path/to/save
+args, _unknown_args = parser.parse_known_args()
 epoch_suffix = f"_{args.epoch}"
 assert args.num_samples>0
 
@@ -36,6 +38,10 @@ with open(path, "r") as stream:
         config: dict[str,dict] = json.load(stream)
     else:
         config: dict[str,dict] = yaml.safe_load(stream)
+
+# Apply CLI overrides before using config
+apply_cli_overrides_from_unknown_args(config, _unknown_args)
+
 if config["General"].get("seed") is not None:
     set_determinism(seed=config["General"]["seed"])
 
@@ -45,6 +51,7 @@ if not os.path.exists(save_dir):
     os.makedirs(save_dir)
 
 device = torch.device(config["General"].get("device") or "cpu")
+print(f"Using device: {device}")
 scaler = torch.amp.GradScaler(enabled=False)
 # set_determinism(seed=0)
 

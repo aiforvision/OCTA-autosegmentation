@@ -10,22 +10,58 @@ This is the repository for the paper [Synthetic optical coherence tomography ang
  Optical coherence tomography angiography(OCTA) is a non-invasive imaging modality that can acquire high-resolution volumes of the retinal vasculature and aid the diagnosis of ocular, neurological and cardiac diseases. Segmenting the visible blood vessels is a common first step when extracting quantitative biomarkers from these images. Classical segmentation algorithms based on thresholding are strongly affected by image artifacts and limited signal-to-noise ratio. The use of modern, deep learning-based segmentation methods has been inhibited by a lack of large datasets with detailed annotations of the blood vessels. To address this issue, recent work has employed transfer learning, where a segmentation network is trained on synthetic OCTA images and is then applied to real data. However, the previously proposed simulations fail to faithfully model the retinal vasculature and do not provide effective domain adaptation. Because of this, current methods are unable to fully segment the retinal vasculature, in particular the smallest capillaries. In this work, we present a lightweight simulation of the retinal vascular network based on space colonization for faster and more realistic OCTA synthesis. We then introduce three contrast adaptation pipelines to decrease the domain gap between real and artificial images. We demonstrate the superior segmentation performance of our approach in extensive quantitative and qualitative experiments on three public datasets that compare our method to traditional computer vision algorithms and supervised training using human annotations. Finally, we make our entire pipeline publicly available, including the source code, pretrained models, and a large dataset of synthetic OCTA images
 
 # 🔴 TL;DR: Segment my images / Generate synthetic images
+## Option A: Docker 🐋 (recommended)
 We provide a docker file with a pretrained model to segment 3×3 mm² macular OCTA images:
 ```sh
 # Build Docker image. (Only required once)
 docker build . -t octa-seg
 ``` 
-#### 1. To **segment** a set of images, replace the placeholders with your directory paths and run:
-> [!NOTE]
-> If you are using Windows and the following commands fail, make sure to change the end of line sequence of the `./docker/dockershell.sh` file from `CRLF` to `LF` (unix style).
+#### To **segment** a set of images, replace the placeholders with your directory paths and run:
 ```sh
 docker run --rm -v [DATASET_DIR]:/var/dataset -v [RESULT_DIR]:/var/segmented octa-seg segmentation
 ``` 
-#### 2. **We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To **generate** _N_ more samples, run:
+#### **We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To **generate** _N_ more samples, run:
 ```sh
 docker run --rm -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 ``` 
+> [!Tip]
+> If you want to enable GPU support, make sure that [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) is installed. Then you can use:
+> ```sh
+> docker run --gpus all --rm -v [DATASET_DIR]:/var/dataset -v [RESULT_DIR]:/var/segmented octa-seg segmentation --General.device cuda
+> ```
 
+
+> [!NOTE]
+> If you are using Windows and the commands fail, make sure to change the end of line sequence of the `./docker/dockershell.sh` file from `CRLF` to `LF` (unix style).
+
+
+## Option B: Local python 🐍
+Quick install (see [Manual Installation](#-manual-installation) for detailed install guide):
+```py
+# Install UV
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Ensure uv is on PATH (if needed)
+export PATH="$HOME/.local/bin:$PATH"
+# Install dependencies
+uv sync --no-dev
+```
+
+#### To **segment** a set of images run:
+```sh
+uv run python test.py --config_file ./docker/trained_models/ves_seg-S-GAN/config_manual.yml --Test.data.image.files [DATASET_DIR]/**/*.png --Test.save_dir [RESULT_DIR] --epoch 30
+``` 
+#### **We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To **generate** _N_ more samples, run:
+
+```sh
+# Generate vessel graphs
+uv run python generate_vessel_graph.py --config_file ./docker/vessel_graph_gen_docker_config.yml  --output.directory [GRAPH_OUTPUT_DIR] --num_samples [N]
+
+# Apply contrast adaptation
+uv run python ./test.py --config_file ./docker/trained_models/GAN/config.yml --epoch 150 --Test.data.real_A.files "[GRAPH_OUTPUT_DIR]/**/.csv" --Test.save_dir [IMAGE_OUTPUT_DIR] [--General.device cuda]
+
+# Generate labels
+uv run python ./visualize_vessel_graphs.py --source_dir [GRAPH_OUTPUT_DIR] --out_dir [LABEL_OUTPUT_DIR] --resolution "1216,1216,16" --binarize 
+```
 ---
 
 # 🔵 Manual Installation
@@ -79,7 +115,7 @@ uv run python train.py --config_file ./configs/[CONFIG_FILE_NAME]
 
 > Troubleshooting
 > - If you have older NVIDIA drivers (pre CUDA 12.6), prefer the Docker-based workflow above or adjust your local PyTorch/CUDA setup accordingly.
-> - Some optional packages like `open3d` may not yet provide wheels for Python 3.13. They are intentionally excluded/commented in `pyproject.toml`.
+> - We use SciPy's cKDTree for nearest-neighbor ops; `open3d` is not required.
 
 
 ### Synthetic Dataset

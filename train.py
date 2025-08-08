@@ -1,28 +1,30 @@
 import argparse
-import torch
 import datetime
 import os
-import yaml
-from monai.utils import set_determinism
+import time
+from copy import deepcopy
 from random import randint
+from shutil import copyfile
 
+import torch
+import yaml
 from models.model import define_model
 from models.networks import init_weights
-import time
-from shutil import copyfile
-from copy import deepcopy
-
+from monai.utils import set_determinism
+from rich.console import Group
 from rich.live import Live
 from rich.progress import Progress, TimeElapsedColumn
 from rich.spinner import Spinner
-from rich.console import  Group
+
 group = Group()
 
 from data.image_dataset import get_dataset, get_post_transformation
-from utils.metrics import MetricsManager
-from utils.visualizer import Visualizer, DynamicDisplay
 from models.base_model_abc import BaseModelABC
+from utils.config_overrides import apply_cli_overrides_from_unknown_args
 from utils.enums import Phase
+from utils.metrics import MetricsManager
+from utils.visualizer import DynamicDisplay, Visualizer
+
 
 def train(args: argparse.Namespace, config: dict[str,dict]):
     global group
@@ -209,13 +211,16 @@ if __name__ == "__main__":
     parser.add_argument('--split', type=str, default='')
     parser.add_argument('--save_latest', type=bool, default=True, help="If true, save a checkpoint and visuals after each epoch under the tag 'latest'.")
     parser.add_argument('--num_workers', type=int, default=None, help="Number of cpu cores for dataloading. If not set, use half of available cores.")
-    args = parser.parse_args()
+    args, _unknown_args = parser.parse_known_args()
 
     # Read config file
     path: str = os.path.abspath(args.config_file)
     assert os.path.isfile(path), f"Your provided config path {args.config_file} does not exist!"
     with open(path, "r") as stream:
         config: dict[str,dict] = yaml.safe_load(stream)
+
+    # Apply CLI overrides before using config
+    apply_cli_overrides_from_unknown_args(config, _unknown_args)
 
     if "seed" not in config["General"]:
         config["General"]["seed"] = randint(0,1e6)

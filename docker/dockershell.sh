@@ -23,10 +23,6 @@ elif [ "$mode" = "visualization" ]
 then
     python /home/OCTA-seg/visualize_vessel_graphs.py --source_dir /var/vessel_graphs --out_dir /var/labels --resolution "1216,1216,16" --binarize "$@" && \
     chmod -R 777 /var/labels
-elif [ "$mode" = "3d_reconstruction" ]
-then
-    python /home/OCTA-seg/test.py --config_file /home/OCTA-seg/docker/trained_models/reconstruction_3d/config.yml --epoch 60 "$@" && \
-    chmod -R 777 /var/reconstructed
 else
     echo "Mode $mode does not exist. Choose segmentation, generation or translation."
     exit 1

@@ -1,20 +1,23 @@
 import argparse
+import concurrent.futures
 import csv
+import os
+import warnings
+from multiprocessing import cpu_count
+
+import nibabel as nib
+import numpy as np
+import vessel_graph_generation.tree2img as tree2img
+import yaml
+from rich.console import Console, Group
+from rich.live import Live
+from rich.progress import Progress, TimeElapsedColumn
+from utils.config_overrides import apply_cli_overrides_from_unknown_args
+from utils.visualizer import DynamicDisplay
 from vessel_graph_generation.forest import Forest
 from vessel_graph_generation.greenhouse import Greenhouse
 from vessel_graph_generation.utilities import prepare_output_dir, read_config
-import vessel_graph_generation.tree2img as tree2img
-import numpy as np
-import nibabel as nib
-import os
-import yaml
-from multiprocessing import cpu_count
-import concurrent.futures
-import warnings
-from rich.console import  Group, Console
-from rich.live import Live
-from rich.progress import Progress, TimeElapsedColumn
-from utils.visualizer import DynamicDisplay
+
 group = Group()
 
 
@@ -92,7 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_samples', type=int, default=1)
     parser.add_argument('--debug', action="store_true")
     parser.add_argument('--threads', help="Number of parallel threads. By default all available threads but one are used.", type=int, default=-1)
-    args = parser.parse_args()
+    args, _unknown_args = parser.parse_known_args()
 
     if args.debug:
         warnings.filterwarnings('error')
@@ -100,6 +103,9 @@ if __name__ == '__main__':
     # Read config file
     assert os.path.isfile(args.config_file), f"Error: Your provided config path {args.config_file} does not exist!"
     config = read_config(args.config_file)
+
+    # Apply CLI overrides before using config
+    apply_cli_overrides_from_unknown_args(config, _unknown_args)
 
     assert config['output'].get('save_3D_volumes') in [None, 'npy', 'nifti'], f"Your provided option {config['output'].get('save_3D_volumes')} for 'save_3D_volumes' does not exist. Choose one of 'null', 'npy' or 'nifti'."
 
