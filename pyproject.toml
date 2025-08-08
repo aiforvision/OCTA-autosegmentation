@@ -7,7 +7,6 @@ requires-python = ">=3.13"
 dependencies = [
     "anytree>=2.13.0",
     "ipykernel>=6.29.5",
-    # "open3d", # Not available for Python 3.13 yet (July 2025)
     "matplotlib>=3.10.3",
     "monai>=1.5.0",
     "natsort>=8.4.0",

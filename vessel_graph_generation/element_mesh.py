@@ -1,11 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Generic, TypeVar
-from vessel_graph_generation.arterial_tree import Node
+
 import numpy as np
-
+from scipy.spatial import cKDTree as _SciPyKDTree  # SciPy is a required dep for KD-tree
+from vessel_graph_generation.arterial_tree import Node
 from vessel_graph_generation.utilities import eukledian_dist
-
-import open3d as o3d
 
 T = TypeVar('T')
 
@@ -87,24 +86,28 @@ class SpacePartitioner(ABC, Generic[T]):
 
 class KD_Tree(SpacePartitioner, Generic[T]):
     """
-    Creates a KD_Tree organize generic elements.
+    KD-tree using SciPy's cKDTree. Falls back to naive NumPy search if no points yet.
     """
     def __init__(self) -> None:
         super().__init__()
-        self.elements: list[T] = list()
-        self.pcl = o3d.geometry.PointCloud()
-        # self.update_kdTree()
+        self.elements: list[T] = []
+        self.points: list[tuple[float, float, float]] = []
+        self.kd_tree: _SciPyKDTree | None = None
 
     def update_kdTree(self):
-        if len(self.pcl.points)>0:
-            self.kd_tree = o3d.geometry.KDTreeFlann(self.pcl)
+        if len(self.points) > 0:
+            self.kd_tree = _SciPyKDTree(np.asarray(self.points))
+        else:
+            self.kd_tree = None
 
     def extend(self, elements: list[T]):
         """
         Adds the given elements to the structure
         """
+        if not elements:
+            return
         self.elements.extend(elements)
-        self.pcl.points.extend([self._get_position(e) for e in elements])
+        self.points.extend([self._get_position(e) for e in elements])
         self.update_kdTree()
 
     def add(self, element: T):
@@ -112,7 +115,7 @@ class KD_Tree(SpacePartitioner, Generic[T]):
         Adds the given element to the tree
         """
         self.elements.append(element)
-        self.pcl.points.append(self._get_position(element))
+        self.points.append(self._get_position(element))
         self.update_kdTree()
 
     def find_elements_in_distance(self, pos: np.ndarray, distance: float) -> list[T]:
@@ -126,18 +129,23 @@ class KD_Tree(SpacePartitioner, Generic[T]):
         Returns:
             List of elements
         """
-        if len(self.pcl.points) > 0:
-            _, indices, _ = self.kd_tree.search_radius_vector_3d(pos, distance)
-            return [ self.elements[idx] for idx in indices]
-        return []
+        if len(self.elements) == 0:
+            return []
+
+        if self.kd_tree is not None:
+            indices = self.kd_tree.query_ball_point(np.asarray(pos), float(distance))
+            return [self.elements[idx] for idx in indices]
+        else:
+            # naive fallback
+            pos = np.asarray(pos)
+            idxs = [i for i, p in enumerate(self._iter_points()) if np.linalg.norm(np.asarray(p) - pos) <= distance]
+            return [self.elements[i] for i in idxs]
 
     def get_all_elements(self) -> list[T]:
         """
         Returns a list of all elements in the mesh
         """
-        if len(self.pcl.points) > 0:
-            return self.elements
-        return []
+        return list(self.elements)
 
     def find_nearest_element(self, pos: tuple[float], max_dist=np.inf) -> T:
         """
@@ -147,37 +155,67 @@ class KD_Tree(SpacePartitioner, Generic[T]):
             - pos: center of search sphere
             - max_dist: Maximum absolute distance of where to look
         """
-        if len(self.pcl.points) > 0:
-            _, indices, _ = self.kd_tree.search_hybrid_vector_3d(pos, max_dist, 1)
-            if len(indices)>0:
-                return self.elements[indices[0]]
-        return None
+        if len(self.elements) == 0:
+            return None
+
+        if self.kd_tree is not None:
+            dist, idx = self.kd_tree.query(np.asarray(pos), k=1)
+            if np.isfinite(dist) and dist <= max_dist:
+                return self.elements[int(idx)]
+            return None
+        else:
+            # naive fallback
+            pos_arr = np.asarray(pos)
+            best = None
+            best_d = float("inf")
+            for i, p in enumerate(self._iter_points()):
+                d = float(np.linalg.norm(np.asarray(p) - pos_arr))
+                if d < best_d:
+                    best_d = d
+                    best = self.elements[i]
+            if best_d <= max_dist:
+                return best
+            return None
 
     def delete(self, element: T):
         """
         Delete an element from the structure
         """
-        _, indices, _ = self.kd_tree.search_knn_vector_3d(self._get_position(element), 1)
-        del self.elements[indices[0]]
-        self.pcl.points.remove(self.pcl.points[indices[0]])
+        if len(self.elements) == 0:
+            return
+        # Find index by identity/equality
+        try:
+            idx = self.elements.index(element)
+        except ValueError:
+            return
+        del self.elements[idx]
+        del self.points[idx]
         self.update_kdTree()
 
     def delete_all(self, elements: list[T]):
         """
         Delete all elements from the structure
         """
-        if len(elements)>0:
-            to_remove = []
-            for element in set(elements):
-                _, indices, _ = self.kd_tree.search_knn_vector_3d(self._get_position(element), 1)
-                to_remove.append(indices[0])
-            for idx in sorted(set(to_remove), reverse=True):
-                del self.elements[idx]
-                self.pcl.points.remove(self.pcl.points[idx])
-            self.update_kdTree()
+        if not elements:
+            return
+        # Determine indices to remove (unique and sorted descending)
+        to_remove = []
+        for e in set(elements):
+            try:
+                to_remove.append(self.elements.index(e))
+            except ValueError:
+                pass
+        for idx in sorted(set(to_remove), reverse=True):
+            del self.elements[idx]
+            del self.points[idx]
+        self.update_kdTree()
 
     def reassign(self, x: float):
+        # No-op for KD_Tree abstraction
         pass
+
+    def _iter_points(self):
+        return self.points
 
 class CoordKdTree(KD_Tree[tuple[float]]):
     """
@@ -241,12 +279,12 @@ class ElementMesh(SpacePartitioner, Generic[T]):
 
     def find_elements_in_distance(self, pos: np.ndarray, distance: float) -> list[T]:
         r = int(np.ceil(distance / self.step_size))
-        x,y,z = self._get_pos_in_mesh(pos)
-        candidates = [x for l in self.mesh[max(0,x-r):x+r+1, max(0,y-r):y+r+1, max(0,z-r):z+r+1].flatten() for x in l]
+        x, y, z = self._get_pos_in_mesh(pos)
+        candidates = [x for lst in self.mesh[max(0, x - r):x + r + 1, max(0, y - r):y + r + 1, max(0, z - r):z + r + 1].flatten() for x in lst]
         return [c for c in candidates if eukledian_dist(self._get_position(c), pos) <= distance]
 
     def get_all_elements(self) -> list[T]:
-        return [e for l in self.mesh.flatten() for e in l]
+        return [e for lst in self.mesh.flatten() for e in lst]
 
     def reassign(self, step_size: float):
         """
@@ -275,7 +313,7 @@ class ElementMesh(SpacePartitioner, Generic[T]):
         x,y,z = self._get_pos_in_mesh(pos)
         offset = 0
         while offset <= min(np.ceil(max_dist/self.step_size), len(self.mesh)):
-            candidates = [e for l in self.mesh[max(x-offset,0):x+offset+1, max(y-offset,0):y+offset+1, max(z-offset,0):z+offset+1].flatten() for e in l]
+            candidates = [e for lst in self.mesh[max(x-offset,0):x+offset+1, max(y-offset,0):y+offset+1, max(z-offset,0):z+offset+1].flatten() for e in lst]
             if len(candidates)>0:
                 return candidates
             offset += 1
