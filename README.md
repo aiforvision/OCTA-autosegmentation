@@ -29,13 +29,57 @@ docker run --rm -v [RESULT_DIR]:/var/generation octa-seg generation [N]
 ---
 
 # 🔵 Manual Installation
-The following section explains how to prepare your environment to run the experiments from the paper, or new experiments. 
+The project uses [uv](https://docs.astral.sh/uv/) with a `pyproject.toml` (`requirements.txt` is depricated). Follow these steps to set up a local environment.
 
-### Installation
-Make sure you have a clean [conda](https://docs.conda.io/en/main/miniconda.html) environment with python 3 and [pytorch](https://pytorch.org/get-started/locally/) (tested with python 3.11, pytorch==2.0.1, and torchvision==0.15.2). Install the remaining required packages:
- ```sh
-pip install -r requirements.txt
- ```
+### Prerequisites
+- OS: Linux recommended (Docker instructions above also available)
+- Python: 3.13 (declared in `pyproject.toml`)
+- GPU (optional but recommended): NVIDIA driver compatible with CUDA 12.6 for GPU builds of PyTorch (cu126)
+
+> Note
+> If your system Python isn’t 3.13, uv can manage a local Python for this project.
+
+### 1) Install uv
+- Linux quick install (official script):
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Ensure uv is on PATH (if needed)
+export PATH="$HOME/.local/bin:$PATH"
+uv --version
+```
+
+### 2) Create the virtual environment and install deps
+From the repository root:
+```sh
+uv sync --no-dev
+```
+This will:
+- Create a project-local virtual environment at `.venv`
+- Install all dependencies defined in `pyproject.toml`
+- Use the configured extra index for PyTorch cu126 wheels when available
+
+Activate the environment (optional if you prefer `uv run`):
+```sh
+source .venv/bin/activate
+```
+
+### 3) Verify PyTorch/CUDA
+You can quickly check whether CUDA is detected:
+```sh
+python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.version.cuda)"
+```
+Expected: `torch.cuda.is_available()` is `True` on a properly configured CUDA system; otherwise it will fall back to CPU.
+
+### 4) Running commands
+You can either stay in the activated venv and use `python`, or prefix commands with `uv run` without activating:
+- Example (train):
+```sh
+uv run python train.py --config_file ./configs/[CONFIG_FILE_NAME]
+```
+
+> Troubleshooting
+> - If you have older NVIDIA drivers (pre CUDA 12.6), prefer the Docker-based workflow above or adjust your local PyTorch/CUDA setup accordingly.
+> - Some optional packages like `open3d` may not yet provide wheels for Python 3.13. They are intentionally excluded/commented in `pyproject.toml`.
 
 
 ### Synthetic Dataset
