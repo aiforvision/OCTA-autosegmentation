@@ -6,9 +6,6 @@ results/
 results.zip
 **/debug*
 
-voreen/*
-!voreen/feature-vesselgraphextraction_customized_command_line.vws
-
 images/*
 !images/*.svg
 TODO.md
@@ -19,3 +16,4 @@ TODO.md
 vessel_graph_generation/runs
 
 **/*.code-workspace
+uv.lock

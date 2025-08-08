@@ -66,7 +66,6 @@ def rasterize_forest(forest: list[dict],
         radius = float(edge["radius"])
         if radius<min_radius or radius>max_radius:
             continue
-        radius *= 1.3
 
         if isinstance(edge["node1"], np.ndarray) or isinstance(edge["node1"], list):
             current_node = tuple(edge["node1"])
@@ -80,6 +79,7 @@ def rasterize_forest(forest: list[dict],
             blackdict[current_node] = True
             continue
 
+        radius *= 1.3
         radius_list.append(radius)
         thickness = radius * scale_factor
         edges.append([(current_node[axes[1]],current_node[axes[0]]),(proximal_node[axes[1]],proximal_node[axes[0]])])
@@ -102,8 +102,9 @@ def rasterize_forest(forest: list[dict],
         colors="w"
     ax.add_collection(collections.LineCollection(edges, linewidths=radii, colors=colors, antialiaseds=True, capstyle="round"))
     figure.canvas.draw()
-    data = np.frombuffer(figure.canvas.tostring_rgb(), dtype=np.uint8)
-    img = data.reshape(figure.canvas.get_width_height()[::-1] + (3,))
+    data = np.frombuffer(figure.canvas.buffer_rgba(), dtype=np.uint8)
+    img = data.reshape(figure.canvas.get_width_height()[::-1] + (4,))
+    img = img[:, :, :3]
     plt.close(figure)
 
     if colorize:

@@ -1,19 +1,19 @@
-from monai.data import DataLoader, Dataset
-from data.data_transforms import *
-from numpy import array
-import torch
-import numpy as np
-from glob import glob
-from natsort import natsorted
 import os
-
-from monai.data.meta_obj import set_track_meta
-from multiprocessing import cpu_count
+from glob import glob
 from math import ceil
+from multiprocessing import cpu_count
 
-from utils.enums import Task
+import numpy as np
+import torch
+from data.data_transforms import get_data_augmentations
 from data.unalignedZipDataset import UnalignedZipDataset
-from utils.enums import Phase
+from monai.data import DataLoader, Dataset
+from monai.data.meta_obj import set_track_meta
+from monai.transforms import Compose
+from natsort import natsorted
+from numpy import array
+from utils.enums import Phase, Task
+
 set_track_meta(False)
 
 def _get_transformation(config, phase: str, dtype=torch.float32) -> Compose:
@@ -21,7 +21,7 @@ def _get_transformation(config, phase: str, dtype=torch.float32) -> Compose:
     Create and return the data transformations for 2D segmentation images the given phase.
     """
     aug_config = config[phase]["data_augmentation"]
-    return Compose(get_data_augmentations(aug_config, config["General"]["seed"], dtype))
+    return Compose(get_data_augmentations(aug_config, config["General"].get("seed", 42), dtype))
 
 def get_post_transformation(config: dict, phase: str) -> dict[str, Compose]:
     """
@@ -31,7 +31,7 @@ def get_post_transformation(config: dict, phase: str) -> dict[str, Compose]:
     post_transformations = dict()
     for k,v in aug_config.items():
         try:
-            post_transformations[k] =  Compose(get_data_augmentations(v, seed=config["General"]["seed"]))
+            post_transformations[k] =  Compose(get_data_augmentations(v, seed=config["General"].get("seed", 42)))
         except Exception as e:
             print("Error: Your provided data augmentations for prediction are invalid.\n")
             raise e
@@ -57,19 +57,19 @@ def get_dataset(config: dict[str, dict], phase: str, batch_size=None, num_worker
                 indices = [int(line.rstrip()) for line in lines]
                 assert max(indices)<len(paths), f"Error: Your provided split file for {key} does not seem to match your dataset! The index {max(indices)} was requested but the dataset only contains {len(paths)} files."
                 paths = array(paths)[indices].tolist()
-                assert len(paths)>0, f"Error: Your provided split file does not reference any file!"
+                assert len(paths)>0, "Error: Your provided split file does not reference any file!"
         data[key] = paths
         data[key+"_path"] = paths
 
     if task == Task.VESSEL_SEGMENTATION:
-        max_length = max([len(l) for l in data.values()])
+        max_length = max([len(v) for v in data.values()])
         for k,v in data.items():
             data[k] = np.resize(np.array(v), max_length).tolist()
         train_files = [dict(zip(data, t)) for t in zip(*data.values())]
         data_set = Dataset(train_files, transform=transform)
     elif task == Task.GAN_VESSEL_SEGMENTATION:
         if phase == Phase.VALIDATION:
-            max_length = max([len(l) for l in data.values()])
+            max_length = max([len(v) for v in data.values()])
             for k,v in data.items():
                 data[k] = np.resize(np.array(v), max_length).tolist()
             train_files = [dict(zip(data, t)) for t in zip(*data.values())]

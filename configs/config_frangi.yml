@@ -146,11 +146,11 @@ Test:
     - name: Resize
       spatial_size:
         # For Giarratano
-        - 360
-        - 360
+        # - 360
+        # - 360
         # For OCTA-500 and ROSE-1
-        # - 1216
-        # - 1216
+        - 1216
+        - 1216
       mode: bilinear
     - name: AsDiscrete
       threshold: 0.5

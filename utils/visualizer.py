@@ -4,7 +4,6 @@ import os
 import torch
 import numpy as np
 from prettytable import PrettyTable
-from torch.utils.tensorboard import SummaryWriter
 import datetime
 import csv
 import json
@@ -57,21 +56,12 @@ class Visualizer():
                     self.epochs.append(int(row["epoch"]))
                     if epoch.isnumeric() and self.epochs[-1] > int(epoch):
                         break
-            if self.save_to_tensorboard:
-                self.tb = SummaryWriter(log_dir=self.save_dir)
-                for epoch,metric_groups in zip(self.epochs,self.track_record):
-                    for title,record in metric_groups.items():
-                        self.tb.add_scalars(title, record, epoch+1)
-                        for k,v in record.items():
-                            self.tb.add_scalar(k,v,epoch+1)
         else:
             while True:
                 self.save_dir = os.path.join(config["Output"]["save_dir"], datetime.datetime.now().strftime('%Y%m%d_%H%M%S'))
                 if not os.path.exists(self.save_dir):
                     os.mkdir(self.save_dir)
                     break
-            if self.save_to_tensorboard:
-                self.tb = SummaryWriter(log_dir=self.save_dir)
         
         config["Output"]["save_dir"] = self.save_dir
         config[Phase.TEST]["save_dir"] = os.path.join(self.save_dir, Phase.TEST.value)
@@ -356,7 +346,6 @@ def plot_sample(
     path: str = '',
     suffix:int=None,
     save_to_tensorboard=False,
-    tb: SummaryWriter=None,
     save_to_disk=True,
     full_size=False) -> str:
     """
@@ -398,7 +387,6 @@ def plot_sample(
             else:
                 images = np.expand_dims(np.stack([input, pred]),1)
             label = "Input, Pred"
-        tb.add_images(label, images)
     
     if save_to_disk:
         div = (1 if full_size else 2)
@@ -437,7 +425,6 @@ def plot_clf_sample(
         path: str,
         suffix: int = None,
         save_to_tensorboard=False,
-        tb: SummaryWriter=None,
         save_to_disk: bool=True) -> str:
     input = input.squeeze(1).detach().cpu().numpy()
     input = input - input.min()
@@ -460,8 +447,6 @@ def plot_clf_sample(
             suffix=''
         path = os.path.join(save_dir, f'sample{suffix}.png')
         plt.savefig(path, bbox_inches='tight')
-    if save_to_tensorboard:
-        tb.add_figure('sample', fig)
     elif save_to_disk:
         plt.close()
     return path

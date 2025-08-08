@@ -1,5 +1,4 @@
 import torch
-import random
 
 def projected_gradient_ascent_step(prior: torch.Tensor, alpha=1, mode="PGA", lambda_x=1):
     if mode == "GS":
@@ -54,7 +53,7 @@ class NoiseModel(torch.nn.Module):
         self.alpha = alpha
         self.optimizer = None
 
-    def forward(self, I: torch.Tensor, I_d: torch.Tensor, adversarial: bool, downsample_factor=1) -> torch.Tensor:
+    def forward(self, I: torch.Tensor, I_d: torch.Tensor, adversarial: bool, downsample_factor=1) -> torch.Tensor:  # noqa: E741
         size = [s for s in I.shape[2:]]
         num_b = I.shape[0]
         I_new: torch.Tensor = torch.nn.functional.interpolate(I, scale_factor=1/downsample_factor, mode="bilinear")

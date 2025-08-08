@@ -1,0 +1,30 @@
+[project]
+name = "octa-seg"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "anytree>=2.13.0",
+    "ipykernel>=6.29.5",
+    # "open3d", # Not available for Python 3.13 yet (July 2025)
+    "matplotlib>=3.10.3",
+    "monai>=1.5.0",
+    "natsort>=8.4.0",
+    "nibabel>=5.3.2",
+    "numpy>=2.3.1",
+    "opencv-python>=4.11.0.86",
+    "prettytable>=3.16.0",
+    "pyyaml>=6.0.2",
+    "rich>=14.0.0",
+    "scikit-image>=0.25.2",
+    "scipy>=1.16.0",
+    "torch==2.6",
+    "torchvision>=0.21.0",
+    "tqdm>=4.67.1",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
