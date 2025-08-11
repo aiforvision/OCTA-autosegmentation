@@ -51,7 +51,7 @@ uv sync --no-dev
 
 #### To **segment** a set of images run:
 ```sh
-uv run python test.py --config_file ./docker/trained_models/ves_seg-S-GAN/config_manual.yml --Test.data.image.files [DATASET_DIR]/**/*.png --Test.save_dir [RESULT_DIR] --epoch 30
+uv run python test.py --config_file ./docker/trained_models/ves_seg-S-GAN/config.yml --Test.data.image.files [DATASET_DIR]/**/*.png --Test.save_dir [RESULT_DIR] --epoch 30
 ``` 
 #### **We provide 500 synthetic training samples** with labels under [./datasets](./datasets). To **generate** _N_ more samples, run:
 
