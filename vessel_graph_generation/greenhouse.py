@@ -1,16 +1,31 @@
-import random
+import time
+import warnings
+from math import sqrt
+
 import matplotlib.pyplot as plt
 import numpy as np
-from math import sqrt
-from typing import Tuple
+from tqdm import tqdm
 
+from vessel_graph_generation.arterial_tree import Node
+from vessel_graph_generation.element_mesh import (
+    CoordKdTree,
+    NodeKdTree,
+    SpacePartitioner,
+)
+from vessel_graph_generation.faz_extraction import (
+    extract_faz_center_radius_unit,
+    load_raw_geometry,
+)
 from vessel_graph_generation.forest import Forest
 from vessel_graph_generation.simulation_space import SimulationSpace
-from vessel_graph_generation.utilities import eukledian_dist, norm_vector, normalize_vector, get_angle_between_vectors, get_angle_between_two_vectors
-from vessel_graph_generation.arterial_tree import Node
-from vessel_graph_generation.element_mesh import CoordKdTree, NodeKdTree, SpacePartitioner
-from tqdm import tqdm
-import time
+from vessel_graph_generation.utilities import (
+    eukledian_dist,
+    get_angle_between_two_vectors,
+    get_angle_between_vectors,
+    norm_vector,
+    normalize_vector,
+)
+
 
 class Greenhouse():
 
@@ -22,33 +37,76 @@ class Greenhouse():
         self.param_scale: float = config['param_scale']
         self.d: float = config['d'] / self.param_scale
         self.r: float = config['r'] / self.param_scale
-        self.FAZ_radius = np.random.normal(config['FAZ_radius_bound'][0] / self.param_scale, config['FAZ_radius_bound'][1] / self.param_scale)
         self.rotation_radius: float = config['rotation_radius'] / self.param_scale
-        self.FAZ_center: Tuple[float, float] = config['FAZ_center']
+
+        if config.get('FAZ_from_geometry', False):
+            sim_cfg = config['SimulationSpace']
+            geom_path = sim_cfg.get('oxygen_sample_geometry_path')
+            if not geom_path:
+                raise ValueError("FAZ_from_geometry requires SimulationSpace.oxygen_sample_geometry_path")
+            proj_axis = int(config.get('FAZ_geometry_proj_axis', 2))
+            raw_geom = load_raw_geometry(geom_path)
+            geom_size = int(max(raw_geom.shape))
+            faz_center_arr, faz_r_unit = extract_faz_center_radius_unit(
+                raw_geom, proj_axis=proj_axis, geometry_size=geom_size
+            )
+            fallback_ok = config.get('FAZ_geometry_use_config_fallback', True)
+            if (
+                not np.all(np.isfinite(faz_center_arr))
+                or not np.isfinite(faz_r_unit)
+                or faz_r_unit <= 0
+            ):
+                msg = (
+                    "Could not derive FAZ from geometry (empty or invalid avascular region); "
+                )
+                if fallback_ok:
+                    warnings.warn(msg + "using FAZ_center and FAZ_radius_bound from config.")
+                    self.FAZ_radius = float(
+                        np.random.normal(
+                            config['FAZ_radius_bound'][0] / self.param_scale,
+                            config['FAZ_radius_bound'][1] / self.param_scale,
+                        )
+                    )
+                    self.FAZ_center = tuple(float(x) for x in config['FAZ_center'])
+                else:
+                    raise RuntimeError(msg + "Set FAZ_geometry_use_config_fallback: true or fix the geometry.")
+            else:
+                self.FAZ_center = (float(faz_center_arr[0]), float(faz_center_arr[1]))
+                self.FAZ_radius = float(faz_r_unit)
+        else:
+            self.FAZ_radius = float(
+                np.random.normal(
+                    config['FAZ_radius_bound'][0] / self.param_scale,
+                    config['FAZ_radius_bound'][1] / self.param_scale,
+                )
+            )
+            self.FAZ_center = tuple(float(x) for x in config['FAZ_center'])
         self.nerve_center = np.array(config["nerve_center"]) / self.param_scale
         self.nerve_radius = np.array(config["nerve_radius"]) / self.param_scale
         self.simspace = SimulationSpace(config["SimulationSpace"], self.FAZ_center, self.FAZ_radius, nerve_center=self.nerve_center, nerve_radius=self.nerve_radius)
 
         self.init_params_from_config(self.modes[0])
 
-    def init_params_from_config(self, config: dict):
+    def init_params_from_config(self, config: dict, update_scale_params: bool = True):
         self.I: int = config['I']
         self.N: int = config['N']
-        self.eps_n: float = config['eps_n']
-        self.eps_s: float = config['eps_s']
-        self.eps_k: float = config['eps_k']
-        self.delta_art: float = config['delta_art']
-        self.delta_ven: float = config['delta_ven']
         self.gamma_art: float = config['gamma_art']
         self.gamma_ven: float = config['gamma_ven']
         self.phi: float = config['phi']
         self.omega: float = config['omega']
+        self.allow_bifurcation: bool = config.get('allow_bifurcation', True)
         self.kappa: float = config['kappa']
         self.delta_sigma: float = config['delta_sigma']
-        self.sigma_t: float = 1
         
-        self.orig_scale = [param / self.param_scale for param in [self.eps_k, self.eps_n, self.eps_s, self.delta_art, self.delta_ven]]
-        self.orig_scale.append(self.d)
+        if update_scale_params:
+            self.sigma_t: float = 1
+            self.eps_n: float = config['eps_n']
+            self.eps_s: float = config['eps_s']
+            self.eps_k: float = config['eps_k']
+            self.delta_art: float = config['delta_art']
+            self.delta_ven: float = config['delta_ven']
+            self.orig_scale = [param / self.param_scale for param in [self.eps_k, self.eps_n, self.eps_s, self.delta_art, self.delta_ven]]
+            self.orig_scale.append(self.d)
 
     def set_forests(self, arterialForest: Forest, venousForest: Forest = None):
         self.arterial_forest = arterialForest
@@ -80,9 +138,11 @@ class Greenhouse():
             self.co2_mesh = CoordKdTree()
         t = 0
         # mbar = tqdm(self.modes)
-        for mode in self.modes:
-            if mode["name"] != self.modes[0]["name"]:
-                self.init_params_from_config(mode)
+        for mode_idx, mode in enumerate(self.modes):
+            self.init_params_from_config(mode, update_scale_params=(mode["name"] != self.modes[max(0,mode_idx-1)]["name"]))
+            if mode_idx > 0 and self.simspace.multi_zone:
+                # Transition to DVC mode if multi-zone geometry is used
+                self._transition_to_dvc_mode(mode["name"])
             if self.I<=0:
                 continue
 
@@ -97,18 +157,18 @@ class Greenhouse():
                 self.active_art_node_mesh.extend(new_nodes)
                 # 3. All oxygen sinks within distance d_suff of arterial nodes are converted to carbon-dioxid sources
                 to_remove = set()
-                to_add = set()
                 for node in new_nodes:
-                    for oxy in self.oxy_mesh.find_elements_in_distance(node.position, self.eps_k):
-                        # Oxygen sink is satisfied. Transform to CO2 source
-                        to_remove.add(oxy)
-                        if self.venous_forest is not None:
-                            closest = self.ven_node_mesh.find_nearest_element(oxy, self.eps_k)
-                            if closest is None:
-                                # self.co2_mesh.add(oxy)
-                                to_add.add(oxy)
-                        # self.oxy_mesh.delete(oxy)
-                self.co2_mesh.extend(to_add)
+                    to_remove.update(self.oxy_mesh.find_elements_in_distance(node.position, self.eps_k))
+                
+                # Check which satisfied oxygen sinks should become CO2 sources
+                to_add = set()
+                if self.venous_forest is not None:
+                    for oxy in to_remove:
+                        closest = self.ven_node_mesh.find_nearest_element(oxy, self.eps_k)
+                        if closest is None:
+                            to_add.add(oxy)
+                
+                    self.co2_mesh.extend(to_add)
                 self.oxy_mesh.delete_all(to_remove)
 
                 if self.venous_forest is not None:
@@ -135,6 +195,74 @@ class Greenhouse():
                     # pbar.set_description(f'[{mode}] Art: {self.art_nodes_per_step[-1]}, Oxy: {self.oxys_per_step[-1]}, Ven: {self.ven_nodes_per_step[-1]}, CO2: {self.co2_per_step[-1]}')
                 # else:
                 #     pbar.set_description(f'[{mode}] Art: {self.art_nodes_per_step[-1]}, Oxy: {self.oxys_per_step[-1]}')
+    
+    def _transition_to_dvc_mode(self, mode_name: dict):
+        """
+        Transition from SVC to DVC growth phase (only for multi-zone geometries).
+        
+        This method:
+        1. Switches simulation space to DVC zone
+        2. Shadows SVC nodes with degree < 3 into the DVC layer
+        3. Moves all oxygen sinks from SVC to DVC
+        
+        Parameters:
+        -----------
+        - mode_name: Name of the new growth mode (should correspond to DVC)
+        """
+        # Step 1: Switch simulation space to DVC zone
+        current_zone_value = self.simspace.zones[self.simspace.current_zone]["value"]
+        
+        self.simspace.set_active_zone(mode_name)
+
+        new_zone_value = self.simspace.zones[self.simspace.current_zone]["value"]
+        if current_zone_value == new_zone_value:
+            return
+        
+        # Step 2: Shadow eligible SVC nodes (degree < 3, not root, not already shadowed)
+        shadow_nodes = []
+        for node in list(self.art_node_mesh.get_all_elements()):
+            if (node.get_degree() < 3 and 
+                not node.is_root and 
+                not node.is_shadowed and
+                node.shadow_pair is None):  # Don't shadow nodes that already have a shadow
+                
+                # Random depth in DVC zone
+                dvc_z_min, dvc_z_max = self.simspace.get_zone_height_range(mode_name, node.position[0], node.position[1])
+                if dvc_z_min == -1 or dvc_z_max == -1 or np.random.uniform(0,1) > np.exp(-0.1 * self.simspace.geometry_size * (dvc_z_min-node.position[2])):
+                    continue  # Skip if no valid DVC range at this (x,y)
+                shadow_depth = np.random.triangular(left=dvc_z_min, mode=dvc_z_min, right=dvc_z_max) if dvc_z_min != dvc_z_max else dvc_z_min
+                shadow_node = node.create_shadow(shadow_depth)
+                shadow_nodes.append(shadow_node)
+        
+        # Step 3: Move oxygen sinks from SVC to DVC
+        self._relocate_oxygen_sinks_to_dvc(mode_name)
+        
+        # Add shadow nodes to mesh for attraction computation
+        self.art_node_mesh.extend(shadow_nodes)
+        self.active_art_node_mesh.extend(shadow_nodes)
+    
+    def _relocate_oxygen_sinks_to_dvc(self, mode_name: str):
+        """
+        Move all oxygen sinks from SVC layer to random DVC depths.
+        
+        Parameters:
+        -----------
+        - z_min: Minimum z-coordinate in DVC layer
+        - z_max: Maximum z-coordinate in DVC layer
+        """
+        all_oxys = list(self.oxy_mesh.get_all_elements())
+        self.oxy_mesh.delete_all(all_oxys)
+        
+        relocated = []
+        for oxy in all_oxys:
+            # Keep x, y but randomize z within DVC range
+            z_min, z_max = self.simspace.get_zone_height_range(mode_name, oxy[0], oxy[1])
+            if z_min == -1 or z_max == -1:
+                continue  # Skip if no valid DVC range at this (x,y)
+            new_oxy = (oxy[0], oxy[1], np.random.uniform(z_min, z_max))
+            relocated.append(new_oxy)
+        
+        self.oxy_mesh.extend(relocated)
 
     def simulation_space_expansion(self):
         """
@@ -172,6 +300,7 @@ class Greenhouse():
         new_nodes: list[Node] = []
         # Vessel Growth
         for node, atts in att_node_assignment.items():
+            
             vector_to_center = np.array(self.FAZ_center)-node.position[:2]
             dist_to_center = np.linalg.norm(vector_to_center)
             if node.is_leaf:
@@ -184,11 +313,23 @@ class Greenhouse():
                 atts = np.array(atts)[valid_inds]
                 if len(atts) == 0:
                     continue
-                avg_attraction_vector = sum([norm_vector(att-node.position) for att in atts])
+                
+                if node.is_shadowed:
+                    # Materialize before sprouting
+                    node.is_shadowed = False
+
+                # Vectorized normalization
+                diff_vectors = atts - node.position
+                norms = np.linalg.norm(diff_vectors, axis=1, keepdims=True)
+                avg_attraction_vector = np.sum(diff_vectors / norms, axis=0)
 
                 angles = angles_i[valid_inds]
                 # IFF the standard deviation of the angles formed by the attraction vectors is larger than a predefined threshold φ
-                if np.std(angles) > self.phi and (self.FAZ_radius==0 or ((dist_to_center / (2*self.FAZ_radius))**5 > random.uniform(0,1) and get_angle_between_two_vectors(vector_to_center, avg_attraction_vector[:2])>90)):
+                if self.allow_bifurcation and np.std(angles) > self.phi and (
+                    self.FAZ_radius==0 or (
+                        (dist_to_center / (2*self.FAZ_radius))**5 > np.random.uniform(0,1) and 
+                        get_angle_between_two_vectors(vector_to_center, avg_attraction_vector[:2])>90
+                    )):
                     # Bifurcation:
                     
                     # # Radii of two resulting vessels after Murray's law
@@ -235,11 +376,16 @@ class Greenhouse():
                     new_nodes.append(node.tree.add_node(p_new_1, r_1, node, self.kappa))
                     new_nodes.append(node.tree.add_node(p_new_2, r_2, node, self.kappa))
                     # Update raddi of all parent edges up to root with Murray
+                    # if first_mode:
                     node.optimize_edge_radius_to_root()
                     node_mesh.delete(node)
                 else:
                     # Elongation
-                    g = self.omega*norm_vector(v) + (1-self.omega)*norm_vector(sum([norm_vector(att-node.position) for att in atts]))
+                    # Vectorized normalization for attraction sum
+                    diff_vectors = atts - node.position
+                    norms = np.linalg.norm(diff_vectors, axis=1, keepdims=True)
+                    attraction_sum = np.sum(diff_vectors / norms, axis=0)
+                    g = self.omega*norm_vector(v) + (1-self.omega)*norm_vector(attraction_sum)
                     
                     if self.rotation_radius>0 and t>15:
                         # Apply quadratic increasing weight to grow in circle near the FAZ
@@ -256,7 +402,7 @@ class Greenhouse():
 
                     p_k = np.real(node.position + self.d * norm_vector(g))
                     new_nodes.append(node.tree.add_node(p_k, self.r, node, self.kappa))
-            elif node.is_inter_node:
+            elif self.allow_bifurcation and node.is_inter_node:
                 # Calculate optimal radius and angle with Murray
                 r_1 = node.get_distal_radius()
                 r_2 = self.r # np.random.default_rng().normal((0.3/node.proximal_num_segments + 0.8)*self.r, self.r / 25)
@@ -278,7 +424,10 @@ class Greenhouse():
                 if len(atts) == 0:
                     continue
 
-                avg_attraction_vector = sum([norm_vector(att-node.position) for att in atts])
+                # Vectorized normalization
+                diff_vectors = atts - node.position
+                norms = np.linalg.norm(diff_vectors, axis=1, keepdims=True)
+                avg_attraction_vector = np.sum(diff_vectors / norms, axis=0)
                 # Rodrigues' rotation formula
                 # If v is a vector in ℝ3 and k is a unit vector describing an axis of rotation about which 
                 # v rotates by an angle θ according to the right hand rule, the Rodrigues formula for the rotated vector vrot is 
@@ -286,8 +435,13 @@ class Greenhouse():
                 # Rotation axis is cross product of child-vector and average attraction vector
                 distal_vector = norm_vector(node.get_distal_segment())
                 cross = np.cross(distal_vector, avg_attraction_vector)
-                if all(cross==0) or ((dist_to_center / (2*self.FAZ_radius))**5 <= random.uniform(0,1) and get_angle_between_two_vectors(vector_to_center, avg_attraction_vector[:2])<=90):
+                if all(cross==0) or ((dist_to_center / (2*self.FAZ_radius))**5 <= np.random.uniform(0,1) and get_angle_between_two_vectors(vector_to_center, avg_attraction_vector[:2])<=90):
                     continue
+                
+                if node.is_shadowed:
+                    # Materialize before sprouting
+                    node.is_shadowed = False
+
                 rot_axis = norm_vector(cross)
                 theta = phi_2 #get_angle_between_vectors(distal_vector, avg_attraction_vector)
                 # Calculate hypothetical optimal branch closest to the average attraction vector
@@ -302,6 +456,7 @@ class Greenhouse():
                 p_k = np.real(node.position + d * norm_vector(g))
                 new_nodes.append(node.tree.add_node(p_k, self.r, node, self.kappa))
                 # Update raddi of all parent edges up to root with Murray
+                # if first_mode:
                 node.optimize_edge_radius_to_root()
                 node_mesh.delete(node)
         return new_nodes
@@ -334,7 +489,7 @@ class Greenhouse():
         to_add = list()
         candidate_sinks = self.simspace.get_candidate_sinks(N)
         for candidate_sink in candidate_sinks:
-            if all([eukledian_dist(candidate_sink, node.position) > self._calculate_oxygen_distance(node.radius) for node in self.art_node_mesh.find_elements_in_distance(candidate_sink, eps_n)]) \
+            if all([eukledian_dist(candidate_sink, node.position) > self._calculate_oxygen_distance(node.radius) for node in self.art_node_mesh.find_elements_in_distance(candidate_sink, eps_n) if not node.is_shadowed]) \
                 and self.oxy_mesh.find_nearest_element(candidate_sink, eps_s) is None \
                 and (not to_add or all(np.linalg.norm(np.array(candidate_sink)-np.array(to_add), axis=1) > eps_s)):
                 to_add.append(tuple(candidate_sink))
@@ -366,7 +521,7 @@ class Greenhouse():
         return assignment
 
     def save_forest_fig(self, output_path='output.png'):
-        fig = plt.figure(figsize=((12, 12)))
+        plt.figure(figsize=((12, 12)))
         ax = plt.axes(projection='3d')
         forests = [self.arterial_forest]
         if self.venous_forest is not None:
@@ -409,7 +564,10 @@ class Greenhouse():
         plt.savefig(f'{out_dir}/oxy_distribution.png', bbox_inches='tight')
         plt.cla()
 
-        co2s = np.array(self.co2_mesh.get_all_elements())
+        if self.venous_forest is not None:
+            co2s = np.array(self.co2_mesh.get_all_elements())
+        else:
+            co2s = np.array([])
         if len(co2s)>0:
             plt.plot(co2s[:,1], 1-co2s[:,0], 'b.')
         plt.xlim(0,1)

@@ -8,7 +8,7 @@ dependencies = [
     "anytree>=2.13.0",
     "ipykernel>=6.29.5",
     "matplotlib>=3.10.3",
-    "monai>=1.5.0",
+    "monai==1.5.0",
     "natsort>=8.4.0",
     "nibabel>=5.3.2",
     "numpy>=2.3.1",

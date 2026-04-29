@@ -33,6 +33,11 @@ class Node(anytree.NodeMixin):
         
         self.parent: Node = parent
 
+        # Shadow node attributes for multi-zone growth
+        self.is_shadowed: bool = False  # True if node is shadowed in deeper layer
+        self.shadow_pair: Node | None = None   # Reference to SVC node (if shadowed) or DVC node (if SVC)
+        self.shadow_depth: float = None # Z-coordinate in DVC where shadowed
+
         # is_root and is_leaf are implemented by anytree
         self.is_inter_node = False
         self.is_bifurcation_node = False
@@ -124,6 +129,8 @@ class Node(anytree.NodeMixin):
         """
         if self.is_leaf:
             raise RuntimeError('Unable to analyze distal part. This node does not have any children.')
+        if self.is_shadowed:
+            return self.parent.get_distal_segment()
         elif self.is_bifurcation_node:
             if child_index is None:
                 raise RuntimeError('Unable to analyze distal part. Unclear which branch to return.')
@@ -168,6 +175,8 @@ class Node(anytree.NodeMixin):
         """
         if self.is_root:
             raise RuntimeError('Unable to analyze proximal part. This node is the root.')
+        elif self.is_shadowed:
+            return self.parent.get_proximal_segment()
         else:
             return self.position - self.parent.position
 
@@ -177,13 +186,48 @@ class Node(anytree.NodeMixin):
         Murray's law up to the root
         """
         if not self.is_root and not self.is_leaf:
-            r_p = sum([child.radius**self.kappa for child in self.children])**(1/self.kappa)
+            kappa = max([child.kappa for child in self.children])
+            r_p = sum([child.radius**kappa for child in self.children])**(1/kappa)
             if self.radius == r_p:
                 return
             self.update_radius(r_p)
             self.parent.optimize_edge_radius_to_root()
+    
+    def get_degree(self) -> int:
+        """
+        Return the number of children this node has (0, 1, or 2).
+        """
+        return len(self.children)
+    
+    def create_shadow(self, shadow_depth: float) -> 'Node':
+        """
+        Create a shadowed copy of this node at specified depth in DVC layer.
         
-
+        Parameters:
+        -----------
+        - shadow_depth: Z-coordinate in DVC where shadow should be placed
+        
+        Returns:
+        --------
+        - Shadow node at (x, y, shadow_depth)
+        """
+        shadow_pos = np.array([self.position[0], self.position[1], shadow_depth])
+        shadow_name = f"{self.name}_shadow"
+        
+        # Create shadow node with same parent structure
+        shadow_node = Node(
+            tree=self.tree,
+            name=shadow_name,
+            position=shadow_pos,
+            radius=self.tree.r_0,  # Start with root radius
+            parent=self,  # Keep same parent for tree structure
+            kappa=self.kappa
+        )
+        
+        shadow_node.is_shadowed = True
+        shadow_node.shadow_depth = shadow_depth
+        
+        return shadow_node
 
 class ArterialTree():
     
@@ -224,6 +268,6 @@ class ArterialTree():
 
 
     def get_tree_iterator(self, exclude_root=False, only_active=False) -> Generator[Node, None, None]:
-
-        filter_ = lambda n: (n.parent is not None if exclude_root else True) and (n.active if only_active else True)
+        def filter_(n: Node) -> bool:
+            return (n.parent is not None if exclude_root else True) and (n.active if only_active else True) and (not n.is_shadowed)
         return anytree.LevelOrderIter(self.root, filter_)

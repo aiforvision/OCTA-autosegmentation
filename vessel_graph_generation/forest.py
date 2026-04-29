@@ -1,6 +1,6 @@
-import os
-import random
+import csv
 import math
+import os
 from typing import Generator
 
 import numpy as np
@@ -8,7 +8,7 @@ import numpy as np
 from vessel_graph_generation.arterial_tree import ArterialTree, Node
 from vessel_graph_generation.simulation_space import SimulationSpace
 from vessel_graph_generation.utilities import norm_vector
-import csv
+
 
 class Forest():
 
@@ -51,17 +51,17 @@ class Forest():
             tree_name = f'{"Arterial" if self.arterial else "Venous"}Tree{tree_counter}'
 
             # random angle
-            alpha = 2 * math.pi * random.random()
+            alpha = 2 * math.pi * np.random.random()
             # random radius
-            r = nerve_radius * math.sqrt(random.random())
+            r = nerve_radius * math.sqrt(np.random.random())
             # calculating coordinates
             x = r * math.cos(alpha) + nerve_center[1]
             y = r * math.sin(alpha) + nerve_center[0]
-            z = random.random() * self.sim_space.size_z
+            z = np.random.random() * self.sim_space.size_z
 
             tree_pos = np.array([x,y,z])
             tree = ArterialTree(tree_name, tree_pos, r_0, self.size_x, self.size_y, self.size_z, self)
-            direction = norm_vector([random.random()-0.5, random.random()-0.5, 0]) * d_0
+            direction = norm_vector([np.random.random()-0.5, np.random.random()-0.5, 0]) * d_0
             tree.add_node(position=tree_pos+direction, radius=r_0, parent=tree.root)
             self.trees.append(tree)
 
@@ -84,11 +84,13 @@ class Forest():
                 source_walls.append(key)
 
         tree_counter = 1
-        for _ in range(N_trees):
+        for i in range(N_trees):
             tree_name = f'{"Arterial" if self.arterial else "Venous"}Tree{tree_counter}'
             tree_counter += 1
-
-            source_wall = random.choice(source_walls)
+            if i < len(source_walls):
+                source_wall = source_walls[i]
+            else:
+                source_wall = np.random.choice(source_walls)
 
             if source_wall == 'x0':
                 y_position, z_position = self.sim_space.get_random_valid_position(along_axis=0, first=True)
@@ -166,7 +168,7 @@ class Forest():
                 self.trees.append(tree)
 
             elif source_wall == 'z1':
-                x_position, y_position = self.sim_space.get_random_valid_position(along_axis=2, first=True)
+                x_position, y_position = self.sim_space.get_random_valid_position(along_axis=2, first=False)
                 position = np.array([x_position,y_position,self.size_z-1e-6])
                 direction = np.array([
                     np.random.uniform(-1 if x_position-d_0>0 else 0, 1 if x_position+d_0<self.size_x else 0),
