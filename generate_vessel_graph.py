@@ -2,6 +2,7 @@ import argparse
 import concurrent.futures
 import csv
 import os
+import traceback
 import warnings
 from multiprocessing import cpu_count
 from random import randint
@@ -36,6 +37,8 @@ def main(config):
     gh_cfg = config['Greenhouse']
     gh_cfg['FAZ_center'] = [float(greenhouse.FAZ_center[0]), float(greenhouse.FAZ_center[1])]
     gh_cfg['FAZ_radius'] = float(greenhouse.FAZ_radius)
+    if greenhouse.FAZ_radius_geometry is not None:
+        gh_cfg['FAZ_radius_geometry'] = float(greenhouse.FAZ_radius_geometry)
 
     # Prepare output directory
     out_dir = prepare_output_dir(config['output'])
@@ -71,8 +74,8 @@ def main(config):
         ven_edges = []
 
     # Save vessel graph as csv file
+    name = out_dir.split("/")[-1]
     if config['output']['save_trees']:
-        name = out_dir.split("/")[-1]
         filepath = os.path.join(out_dir, name+'.csv')
         with open(filepath, 'w+') as file:
             writer = csv.writer(file)
@@ -86,10 +89,10 @@ def main(config):
         ven_mat, _ = tree2img.voxelize_forest(ven_edges, volume_dimension, radius_list)
         art_ven_mat_gray = np.maximum(art_mat, ven_mat).astype(np.uint8)
         if config["output"]["save_3D_volumes"] == "npy":
-            np.save(f'{out_dir}/art_ven_img_gray.npy', art_ven_mat_gray)
+            np.save(f'{out_dir}/{name}.npy', art_ven_mat_gray)
         elif config["output"]["save_3D_volumes"] == "nifti":
             nifti = nib.Nifti1Image(art_ven_mat_gray, np.eye(4))
-            nib.save(nifti, f"{out_dir}/art_ven_img_gray.nii.gz")
+            nib.save(nifti, f"{out_dir}/{name}.nii.gz")
     
     if config["output"]["save_2D_image"]:
         if not config["output"].get("save_3D_volumes"):
@@ -111,7 +114,7 @@ def main(config):
         art_mat,_ = tree2img.rasterize_forest(art_edges, image_res, MIP_axis=config["output"]["proj_axis"], radius_list=radius_list)
         ven_mat,_ = tree2img.rasterize_forest(ven_edges, image_res, MIP_axis=config["output"]["proj_axis"], radius_list=radius_list)
         art_ven_mat_gray = np.maximum(art_mat, ven_mat).astype(np.uint8)
-        tree2img.save_2d_img(art_ven_mat_gray, out_dir, "art_ven_img_gray")
+        tree2img.save_2d_img(art_ven_mat_gray, out_dir, name)
 
 
     if config["output"]["save_stats"]:
@@ -123,7 +126,7 @@ if __name__ == '__main__':
     parser.add_argument('--config_file', type=str, required=True)
     parser.add_argument('--num_samples', type=int, default=1)
     parser.add_argument('--debug', action="store_true")
-    parser.add_argument('--seed', type=int, default=None, help="Random seed for reproducibility. If not provided, results will be non-deterministic.")
+    parser.add_argument('--seed', type=int, default=None, help="Random seed (overrides config 'seed' when set). If omitted, config 'seed' is used when present; otherwise each run is non-deterministic.")
     parser.add_argument('--threads', help="Number of parallel threads. By default all available threads but one are used.", type=int, default=-1)
     parser.add_argument('--geometry_folder', type=str, default=None, help="Path to folder containing fixed geometry .npy files to be used for simulation space. If provided, one random geometry file from the folder will be selected for each sample.")
     args, _unknown_args = parser.parse_known_args()
@@ -140,9 +143,19 @@ if __name__ == '__main__':
 
     assert config['output'].get('save_3D_volumes') in [None, 'npy', 'nifti'], f"Your provided option {config['output'].get('save_3D_volumes')} for 'save_3D_volumes' does not exist. Choose one of 'null', 'npy' or 'nifti'."
 
+    # CLI --seed overrides config['seed']; both are honored (YAML-only seed was previously discarded).
+    effective_seed = args.seed if args.seed is not None else config.get('seed')
+    if effective_seed is not None:
+        effective_seed = int(effective_seed)
+
     if args.geometry_folder is not None:
         assert os.path.isdir(args.geometry_folder), f"Error: Your provided geometry folder path {args.geometry_folder} does not exist!"
         geometry_files = [os.path.join(args.geometry_folder, f) for f in os.listdir(args.geometry_folder) if f.endswith('.npy') or f.endswith('.nii.gz')]
+        geometry_files.sort()
+        if effective_seed is not None:
+            np.random.seed(effective_seed)
+            import random as _random
+            _random.seed(effective_seed)
         np.random.shuffle(geometry_files)
         assert len(geometry_files)>0, f"Error: No .npy files found in your provided geometry folder {args.geometry_folder}!"
         config['Greenhouse']['SimulationSpace']['oxygen_sample_geometry_path'] = None # Will be set randomly for each sample below
@@ -161,11 +174,12 @@ if __name__ == '__main__':
         progress.add_task(f"Generating {args.num_samples} vessel graphs:", total=args.num_samples)
         with DynamicDisplay(group, progress):
             if threads>1:
-                # Multi processing
+                # Multi processing — must call future.result() so worker exceptions are not lost.
+                console = Console(force_terminal=True)
                 with concurrent.futures.ProcessPoolExecutor(max_workers=threads) as executor:
                     future_dict = {executor.submit(main, {
                         **config,
-                        "seed": randint(0, 1000000),
+                        "seed": effective_seed if effective_seed is not None else randint(0, 1000000),
                         "Greenhouse": {
                             **config["Greenhouse"],
                             "SimulationSpace": {
@@ -175,14 +189,23 @@ if __name__ == '__main__':
                         }
                     }): i for i in range(args.num_samples)}
                     for future in concurrent.futures.as_completed(future_dict):
-                        i = future_dict[future]
+                        sample_idx = future_dict[future]
+                        try:
+                            future.result()
+                        except Exception:
+                            console.print(
+                                f"\n[bold red]Parallel worker failed[/bold red] "
+                                f"(sample index {sample_idx} / {args.num_samples})."
+                            )
+                            console.print(traceback.format_exc())
+                            raise
                         progress.advance(task_id=0)
             else:
                 # Single processing
                 for i in range(args.num_samples):
                     main({
                         **config,
-                        "seed": args.seed if args.seed is not None else randint(0, 1000000),
+                        "seed": effective_seed if effective_seed is not None else randint(0, 1000000),
                         "Greenhouse": {
                             **config["Greenhouse"],
                             "SimulationSpace": {

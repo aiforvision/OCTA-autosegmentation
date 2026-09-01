@@ -25,6 +25,9 @@ from vessel_graph_generation.utilities import (
     norm_vector,
     normalize_vector,
 )
+import seaborn as sns
+
+sns.set_theme()
 
 
 class Greenhouse():
@@ -37,8 +40,11 @@ class Greenhouse():
         self.param_scale: float = config['param_scale']
         self.d: float = config['d'] / self.param_scale
         self.r: float = config['r'] / self.param_scale
-        self.rotation_radius: float = config['rotation_radius'] / self.param_scale
+        # rotation_radius is set after FAZ_radius is finalized (see rotation_radius_from_faz below).
+        # Raw FAZ radius from geometry (unit space), before FAZ_radius_calibration; None if not from geometry.
+        self.FAZ_radius_geometry: float | None = None
 
+        used_geometry_faz_radius: bool = False
         if config.get('FAZ_from_geometry', False):
             sim_cfg = config['SimulationSpace']
             geom_path = sim_cfg.get('oxygen_sample_geometry_path')
@@ -72,7 +78,9 @@ class Greenhouse():
                     raise RuntimeError(msg + "Set FAZ_geometry_use_config_fallback: true or fix the geometry.")
             else:
                 self.FAZ_center = (float(faz_center_arr[0]), float(faz_center_arr[1]))
+                self.FAZ_radius_geometry = float(faz_r_unit)
                 self.FAZ_radius = float(faz_r_unit)
+                used_geometry_faz_radius = True
         else:
             self.FAZ_radius = float(
                 np.random.normal(
@@ -81,6 +89,51 @@ class Greenhouse():
                 )
             )
             self.FAZ_center = tuple(float(x) for x in config['FAZ_center'])
+
+        cal = config.get("FAZ_radius_calibration") or {}
+        if cal.get("enabled", False):
+            apply_only = cal.get("apply_only_after_geometry_extraction", True)
+            if used_geometry_faz_radius or not apply_only:
+                a = float(cal["a"])
+                b = float(cal["b"])
+                r_given = float(self.FAZ_radius)
+                r_calibrated = a * r_given + b
+                if r_calibrated < 0:
+                    warnings.warn(
+                        f"FAZ_radius_calibration: pre-calibration FAZ_radius={r_given}, "
+                        f"calibrated value would be {r_calibrated}; "
+                        f"clamping FAZ_radius to 0.",
+                        UserWarning,
+                        stacklevel=2,
+                    )
+                    self.FAZ_radius = 1e-5
+                else:
+                    self.FAZ_radius = r_calibrated
+
+        # rotation_radius is in unit space. Either fixed (config['rotation_radius'] mm / param_scale),
+        # or linearly derived from the (already calibrated) FAZ_radius via
+        #   rotation_radius = scale * FAZ_radius + offset_mm / param_scale
+        rr_from_faz = config.get("rotation_radius_from_faz") or {}
+        if rr_from_faz.get("enabled", False):
+            scale = float(rr_from_faz.get("scale", 1.0))
+            offset_mm = float(rr_from_faz.get("offset_mm", 0.0))
+            self.rotation_radius = scale * self.FAZ_radius + offset_mm / self.param_scale
+            if self.rotation_radius < 0:
+                warnings.warn(
+                    f"rotation_radius_from_faz: derived rotation_radius={self.rotation_radius} < 0 "
+                    f"(scale={scale}, offset_mm={offset_mm}, FAZ_radius={self.FAZ_radius}); "
+                    "clamping to 0.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                self.rotation_radius = 0.0
+        else:
+            self.rotation_radius = float(config['rotation_radius']) / self.param_scale
+
+        # Dimensionless scale on rotation blend weight (after sqrt in grow_vessels).
+        self.rotation_strength: float = float(config.get('rotation_strength', 1.0))
+        self.prune_leaf_neighbors_of_degree3: bool = bool(config.get('prune_leaf_neighbors_of_degree3', False))
+
         self.nerve_center = np.array(config["nerve_center"]) / self.param_scale
         self.nerve_radius = np.array(config["nerve_radius"]) / self.param_scale
         self.simspace = SimulationSpace(config["SimulationSpace"], self.FAZ_center, self.FAZ_radius, nerve_center=self.nerve_center, nerve_radius=self.nerve_radius)
@@ -95,6 +148,7 @@ class Greenhouse():
         self.phi: float = config['phi']
         self.omega: float = config['omega']
         self.allow_bifurcation: bool = config.get('allow_bifurcation', True)
+        self.min_bifurcation_hops: int = int(config.get('min_bifurcation_hops', 0))
         self.kappa: float = config['kappa']
         self.delta_sigma: float = config['delta_sigma']
         
@@ -112,6 +166,39 @@ class Greenhouse():
         self.arterial_forest = arterialForest
         self.venous_forest = venousForest
 
+    def _prune_active_inter_nodes_near_degree3(self, branch_node: Node, active_node_mesh: SpacePartitioner[Node]):
+        # Once a node became degree-3, suppress nearby degree-2 nodes as sprouting candidates.
+        to_remove = branch_node.get_blocked_inter_nodes_after_bifurcation()
+        if to_remove:
+            active_node_mesh.delete_all(to_remove)
+
+    def _prune_leaf_neighbors_of_degree3_after_growth(self):
+        """
+        Optional post-processing: remove leaf nodes whose direct parent has graph degree 3.
+        """
+        def _collect_prunable_leaves(forest: Forest) -> list[Node]:
+            leaves_to_remove: list[Node] = []
+            for tree in forest.get_trees():
+                for node in tree.get_tree_iterator(exclude_root=True, only_active=False):
+                    if node.is_leaf and node.parent is not None and node.parent.graph_degree() == 3:
+                        leaves_to_remove.append(node)
+            return leaves_to_remove
+
+        art_to_remove = _collect_prunable_leaves(self.arterial_forest)
+        if art_to_remove:
+            self.art_node_mesh.delete_all(art_to_remove)
+            self.active_art_node_mesh.delete_all(art_to_remove)
+            for node in art_to_remove:
+                node.parent = None
+
+        if self.venous_forest is not None:
+            ven_to_remove = _collect_prunable_leaves(self.venous_forest)
+            if ven_to_remove:
+                self.ven_node_mesh.delete_all(ven_to_remove)
+                self.active_ven_node_mesh.delete_all(ven_to_remove)
+                for node in ven_to_remove:
+                    node.parent = None
+
     def develop_forest(self):
         """
         Main loop. Generates the arterial (and venous) blood vessel forest
@@ -120,11 +207,17 @@ class Greenhouse():
         self.art_node_mesh.extend(list(self.arterial_forest.get_nodes()))
         self.active_art_node_mesh = NodeKdTree()
         self.active_art_node_mesh.extend(list(self.arterial_forest.get_nodes()))
+        for node in self.art_node_mesh.get_all_elements():
+            if not hasattr(node, "min_bifurcation_hops"):
+                node.min_bifurcation_hops = self.min_bifurcation_hops
         if self.venous_forest is not None:
             self.ven_node_mesh = NodeKdTree()
             self.ven_node_mesh.extend(list(self.venous_forest.get_nodes()))
             self.active_ven_node_mesh = NodeKdTree()
             self.active_ven_node_mesh.extend(list(self.venous_forest.get_nodes()))
+            for node in self.ven_node_mesh.get_all_elements():
+                if not hasattr(node, "min_bifurcation_hops"):
+                    node.min_bifurcation_hops = self.min_bifurcation_hops
 
         # Stats
         self.art_nodes_per_step = [0]
@@ -195,6 +288,16 @@ class Greenhouse():
                     # pbar.set_description(f'[{mode}] Art: {self.art_nodes_per_step[-1]}, Oxy: {self.oxys_per_step[-1]}, Ven: {self.ven_nodes_per_step[-1]}, CO2: {self.co2_per_step[-1]}')
                 # else:
                 #     pbar.set_description(f'[{mode}] Art: {self.art_nodes_per_step[-1]}, Oxy: {self.oxys_per_step[-1]}')
+
+        if self.prune_leaf_neighbors_of_degree3:
+            self._prune_leaf_neighbors_of_degree3_after_growth()
+            # Record post-processing as one extra stats step so node removal is visible.
+            self.time_per_step.append(0.0)
+            self.art_nodes_per_step.append(len(self.art_node_mesh.get_all_elements()))
+            self.oxys_per_step.append(len(self.oxy_mesh.get_all_elements()))
+            if self.venous_forest is not None:
+                self.ven_nodes_per_step.append(len(self.ven_node_mesh.get_all_elements()))
+                self.co2_per_step.append(len(self.co2_mesh.get_all_elements()))
     
     def _transition_to_dvc_mode(self, mode_name: dict):
         """
@@ -373,11 +476,12 @@ class Greenhouse():
                     p_new_1 = np.real(node.position + norm_vector(np.cos(np.radians(phi_1)) * d_parent_c + np.sin(np.radians(phi_1))*d_l) * d1)
                     p_new_2 = np.real(node.position + norm_vector(np.cos(np.radians(phi_2)) * d_parent_c - np.sin(np.radians(phi_2))*d_l) * d2)
 
-                    new_nodes.append(node.tree.add_node(p_new_1, r_1, node, self.kappa))
-                    new_nodes.append(node.tree.add_node(p_new_2, r_2, node, self.kappa))
+                    new_nodes.append(node.tree.add_node(p_new_1, r_1, node, self.kappa, self.min_bifurcation_hops))
+                    new_nodes.append(node.tree.add_node(p_new_2, r_2, node, self.kappa, self.min_bifurcation_hops))
                     # Update raddi of all parent edges up to root with Murray
                     # if first_mode:
                     node.optimize_edge_radius_to_root()
+                    self._prune_active_inter_nodes_near_degree3(node, node_mesh)
                     node_mesh.delete(node)
                 else:
                     # Elongation
@@ -394,6 +498,7 @@ class Greenhouse():
                         dist_new_pos_to_center = np.linalg.norm(np.array(self.FAZ_center)-(node.position + self.d * g)[:2])
                         weight = max(0.01 if not first_mode else 0,self.rotation_radius-dist_new_pos_to_center)
                         weight = sqrt(weight)
+                        weight *= self.rotation_strength
                         ort_vector = np.array([-center_vector[1],center_vector[0],0])
                         if get_angle_between_two_vectors(g[:2],ort_vector[:2])>90:
                             ort_vector = -1*ort_vector
@@ -401,8 +506,10 @@ class Greenhouse():
                         g = (1-weight)*g + 0.7*weight*ort_vector + 0.3*weight*out_vector
 
                     p_k = np.real(node.position + self.d * norm_vector(g))
-                    new_nodes.append(node.tree.add_node(p_k, self.r, node, self.kappa))
+                    new_nodes.append(node.tree.add_node(p_k, self.r, node, self.kappa, self.min_bifurcation_hops))
             elif self.allow_bifurcation and node.is_inter_node:
+                if not node.can_inter_node_sprout():
+                    continue
                 # Calculate optimal radius and angle with Murray
                 r_1 = node.get_distal_radius()
                 r_2 = self.r # np.random.default_rng().normal((0.3/node.proximal_num_segments + 0.8)*self.r, self.r / 25)
@@ -454,10 +561,11 @@ class Greenhouse():
                 d = self.d#np.random.default_rng().normal((0.3/node.proximal_num_segments + 0.8)*self.d, self.d / 25)
 
                 p_k = np.real(node.position + d * norm_vector(g))
-                new_nodes.append(node.tree.add_node(p_k, self.r, node, self.kappa))
+                new_nodes.append(node.tree.add_node(p_k, self.r, node, self.kappa, self.min_bifurcation_hops))
                 # Update raddi of all parent edges up to root with Murray
                 # if first_mode:
                 node.optimize_edge_radius_to_root()
+                self._prune_active_inter_nodes_near_degree3(node, node_mesh)
                 node_mesh.delete(node)
         return new_nodes
 
@@ -584,14 +692,34 @@ class Greenhouse():
         plt.savefig(f'{out_dir}/time_per_step.png', bbox_inches='tight')
         plt.cla()
 
-        plt.plot(self.art_nodes_per_step)
-        plt.plot(self.oxys_per_step)
+        (art_line,) = plt.plot(self.art_nodes_per_step)
+        (oxy_line,) = plt.plot(self.oxys_per_step)
+        final_art_nodes = self.art_nodes_per_step[-1]
+        last_t = len(self.art_nodes_per_step) - 1
+        plt.plot(
+            last_t,
+            final_art_nodes,
+            "o",
+            color=art_line.get_color(),
+            zorder=5,
+        )
         if self.venous_forest is not None:
-            plt.plot(self.ven_nodes_per_step)
-            plt.plot(self.co2_per_step)
-            plt.legend(['Arterial Nodes', 'Oxygen Sinks', 'Venous Nodes', 'CO₂ Sources'])
+            (ven_line,) = plt.plot(self.ven_nodes_per_step)
+            (co2_line,) = plt.plot(self.co2_per_step)
+            plt.legend(
+                (art_line, oxy_line, ven_line, co2_line),
+                (
+                    f"Arterial Nodes (final: {final_art_nodes})",
+                    "Oxygen Sinks",
+                    "Venous Nodes",
+                    "CO₂ Sources",
+                ),
+            )
         else:
-            plt.legend(['Nodes', 'Oxygen Sinks'])
+            plt.legend(
+                (art_line, oxy_line),
+                (f"Nodes (final: {final_art_nodes})", "Oxygen Sinks"),
+            )
         plt.title('Growth Over Time')
         plt.xlabel('Iterations')
         plt.ylabel('Amount')

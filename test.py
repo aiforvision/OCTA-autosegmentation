@@ -4,14 +4,15 @@ import os
 
 import torch
 import yaml
-from data.image_dataset import get_dataset, get_post_transformation
-from models.model import define_model
-from models.networks import init_weights
 from monai.utils import set_determinism
 from rich.console import Console, Group
 from rich.live import Live
 from rich.progress import Progress, TimeElapsedColumn
 from rich.spinner import Spinner
+
+from data.image_dataset import get_dataset, get_post_transformation
+from models.model import define_model
+from models.networks import init_weights
 from utils.config_overrides import apply_cli_overrides_from_unknown_args
 from utils.enums import Phase
 from utils.visualizer import DynamicDisplay, plot_sample, plot_single_image

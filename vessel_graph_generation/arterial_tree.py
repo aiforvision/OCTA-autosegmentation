@@ -1,3 +1,4 @@
+from collections import deque
 from typing import Generator
 
 import anytree
@@ -6,7 +7,7 @@ import numpy as np
 
 class Node(anytree.NodeMixin):
 
-    def __init__(self, tree, name, position, radius, parent=None, kappa=4):
+    def __init__(self, tree, name, position, radius, parent=None, kappa=4, min_bifurcation_hops=0):
         """
         Creates a new node in the given tree.
 
@@ -30,6 +31,7 @@ class Node(anytree.NodeMixin):
         self.active = self._node_inbounds()
 
         self.kappa=kappa
+        self.min_bifurcation_hops: int = int(min_bifurcation_hops)
         
         self.parent: Node = parent
 
@@ -192,6 +194,65 @@ class Node(anytree.NodeMixin):
                 return
             self.update_radius(r_p)
             self.parent.optimize_edge_radius_to_root()
+
+    def graph_degree(self) -> int:
+        """
+        Return graph degree in the undirected vessel graph (parent + children).
+        """
+        return len(self.children) + (0 if self.is_root else 1)
+
+    def get_neighbor_nodes(self) -> list['Node']:
+        neighbors = list(self.children)
+        if self.parent is not None:
+            neighbors.append(self.parent)
+        return neighbors
+
+    def nodes_within_hops(self, hops: int, include_start: bool = False) -> set['Node']:
+        if hops < 0:
+            return set()
+        visited = {self}
+        queue = deque([(self, 0)])
+        nodes = {self} if include_start else set()
+        while queue:
+            node, dist = queue.popleft()
+            if dist >= hops:
+                continue
+            for neighbor in node.get_neighbor_nodes():
+                if neighbor in visited:
+                    continue
+                visited.add(neighbor)
+                nodes.add(neighbor)
+                queue.append((neighbor, dist + 1))
+        return nodes
+
+    def can_inter_node_sprout(self) -> bool:
+        """
+        Allow inter-node sprouting only if no nearby node (within hop budget)
+        already has degree >= 3.
+        """
+        hops = int(getattr(self, "min_bifurcation_hops", 1))
+        if hops <= 0:
+            return True
+        for near_node in self.nodes_within_hops(hops, include_start=False):
+            if near_node.graph_degree() >= 3:
+                return False
+        return True
+
+    def get_blocked_inter_nodes_after_bifurcation(self) -> list['Node']:
+        """
+        Return degree-2 neighbors within hop budget that should be removed from
+        active sprouting candidates after this node became degree-3.
+        """
+        if self.graph_degree() < 3:
+            return []
+        hops = int(getattr(self, "min_bifurcation_hops", 1))
+        if hops <= 0:
+            return []
+        return [
+            node
+            for node in self.nodes_within_hops(hops, include_start=False)
+            if node.graph_degree() == 2
+        ]
     
     def get_degree(self) -> int:
         """
@@ -259,12 +320,20 @@ class ArterialTree():
         return str(anytree.RenderTree(self.root))
 
 
-    def add_node(self, position, radius, parent, kappa=4) -> Node:
+    def add_node(self, position, radius, parent, kappa=4, min_bifurcation_hops=1) -> Node:
 
         new_name = 'Node' + str(self.name_counter)
         self.name_counter += 1
 
-        return Node(self, new_name, position=position, radius=radius, parent=parent, kappa=kappa)
+        return Node(
+            self,
+            new_name,
+            position=position,
+            radius=radius,
+            parent=parent,
+            kappa=kappa,
+            min_bifurcation_hops=min_bifurcation_hops,
+        )
 
 
     def get_tree_iterator(self, exclude_root=False, only_active=False) -> Generator[Node, None, None]:

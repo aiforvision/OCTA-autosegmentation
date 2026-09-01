@@ -180,7 +180,9 @@ def voxelize_forest(forest: dict,
                     max_radius=1,
                     max_dropout_prob=0,
                     blackdict: dict[str, bool]=None,
-                    ignore_z=False) -> Tuple[np.ndarray, dict[str, bool]]:
+                    ignore_z=False,
+                    crop_start: Sequence[int] | None=None,
+                    crop_stop: Sequence[int] | None=None) -> Tuple[np.ndarray, dict[str, bool]]:
     """
     Converts the given 3D forest into a 3D (grayscale) volume.
     Antialiased drawing of the tree edges is performed manually.
@@ -213,7 +215,27 @@ def voxelize_forest(forest: dict,
     voxel_size = 1
     voxel_diag = np.linalg.norm(np.array([1, 1, 1]))
 
-    img = np.zeros((no_voxel_x, no_voxel_y, no_voxel_z))
+    if (crop_start is None) != (crop_stop is None):
+        raise ValueError("crop_start and crop_stop must be provided together")
+    if crop_start is None:
+        crop_start_arr = np.zeros(3, dtype=int)
+        crop_stop_arr = image_dim.astype(int)
+    else:
+        crop_start_arr = np.asarray(crop_start, dtype=int)
+        crop_stop_arr = np.asarray(crop_stop, dtype=int)
+        if crop_start_arr.shape != (3,) or crop_stop_arr.shape != (3,):
+            raise ValueError("crop_start and crop_stop must contain three coordinates")
+        if np.any(crop_start_arr < 0) or np.any(crop_stop_arr > image_dim):
+            raise ValueError(
+                f"Crop {tuple(crop_start_arr)} -> {tuple(crop_stop_arr)} "
+                f"falls outside volume {tuple(image_dim)}"
+            )
+        if np.any(crop_stop_arr <= crop_start_arr):
+            raise ValueError(
+                f"Invalid crop bounds: {tuple(crop_start_arr)} -> {tuple(crop_stop_arr)}"
+            )
+
+    img = np.zeros(tuple(crop_stop_arr-crop_start_arr))
 
     if radius_list is None:
         radius_list=[]
@@ -253,7 +275,15 @@ def voxelize_forest(forest: dict,
         ))
         if len(voxel_indices) == 0:
             continue
+        in_crop = np.logical_and(
+            np.all(voxel_indices >= crop_start_arr, axis=1),
+            np.all(voxel_indices < crop_stop_arr, axis=1),
+        )
+        voxel_indices = voxel_indices[in_crop]
+        if len(voxel_indices) == 0:
+            continue
         indices = (voxel_indices+.5) * voxel_size
+        local_voxel_indices = voxel_indices-crop_start_arr
 
         # Calculate orthogonal projection of each voxel onto segment
         segment_vector = current_node - proximal_node
@@ -265,7 +295,7 @@ def voxelize_forest(forest: dict,
         vector_projection = proximal_node + np.dot(scalar_projection[:, None], segment_vector[None, :])
         dist = np.linalg.norm(indices - vector_projection, axis=1)
 
-        inds: list[list] = voxel_indices[inside_segment].astype(np.uint16).transpose().tolist()
+        inds: list[list] = local_voxel_indices[inside_segment].astype(np.uint16).transpose().tolist()
         volume_contribution = 1 - ((dist[inside_segment] - (radius - voxel_diag/2)) / voxel_diag)
         
         img[tuple(inds)] = np.maximum(volume_contribution, img[tuple(inds)])
@@ -274,7 +304,7 @@ def voxelize_forest(forest: dict,
             np.linalg.norm(indices-current_node, axis=1),
             np.linalg.norm(indices-proximal_node, axis=1)
         )
-        inds = voxel_indices.astype(np.uint16).transpose().tolist()
+        inds = local_voxel_indices.astype(np.uint16).transpose().tolist()
         img[tuple(inds)] = np.maximum(1-((dist - (radius - voxel_diag/2)) / voxel_diag), img[tuple(inds)])
     img = (255*np.clip(img,0,1))
     return img.astype(np.uint16), blackdict

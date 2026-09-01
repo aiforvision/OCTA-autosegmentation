@@ -8,16 +8,57 @@ matching the largest-component idea used for OCTA-based FAZ masks.
 from typing import Tuple
 
 import numpy as np
-from scipy.ndimage import label
+from scipy.ndimage import center_of_mass, label
 
 
 def select_largest_component(arr: np.ndarray) -> np.ndarray:
+    """
+    Pick the void component that best matches a central FAZ: prefer components that do not
+    touch the image border; among those (or all, if every component touches the border),
+    maximize area weighted by distance to the image center so border volume artifacts
+    cannot win on size alone.
+    """
     labeled_arr, num_features = label(arr)
     if num_features == 0:
         return np.zeros_like(arr, dtype=bool)
+
+    h, w = arr.shape
+    cy0 = (h - 1) / 2.0
+    cx0 = (w - 1) / 2.0
+    # Gaussian in pixels; ~0.35 * max(h, w) keeps central blobs competitive vs edge blobs.
+    sigma_sq = 2.0 * (0.35 * max(h, w)) ** 2
+
     sizes = np.bincount(labeled_arr.ravel())
-    largest_label = np.argmax(sizes[1:]) + 1
-    return labeled_arr == largest_label
+    weights = np.ones_like(labeled_arr, dtype=np.float64)
+    coms = center_of_mass(weights, labeled_arr, index=range(1, num_features + 1))
+
+    candidates: list[tuple[int, int, float, bool]] = []
+    for k in range(1, num_features + 1):
+        area = int(sizes[k])
+        if area == 0:
+            continue
+        cy, cx = coms[k - 1]
+        d2 = (float(cx) - cx0) ** 2 + (float(cy) - cy0) ** 2
+        touches_border = (
+            np.any(labeled_arr[0, :] == k)
+            or np.any(labeled_arr[-1, :] == k)
+            or np.any(labeled_arr[:, 0] == k)
+            or np.any(labeled_arr[:, -1] == k)
+        )
+        candidates.append((k, area, d2, touches_border))
+
+    interior = [c for c in candidates if not c[3]]
+    pool = interior if interior else candidates
+
+    best_label = pool[0][0]
+    best_score = -1.0
+    for k, area, d2, _ in pool:
+        score = float(area) * np.exp(-d2 / sigma_sq)
+        if score > best_score:
+            best_score = score
+            best_label = k
+
+    return labeled_arr == best_label
 
 
 def faz_area_matched_radius(mask: np.ndarray) -> Tuple[float, Tuple[float, float]]:

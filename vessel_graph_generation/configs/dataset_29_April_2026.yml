@@ -5,7 +5,7 @@ Greenhouse:
     no_voxel_x: 1
     no_voxel_y: 1
     no_voxel_z: 0.125
-    oxygen_sample_geometry_path: null
+    oxygen_sample_geometry_path: /home/kreitner/TUM_repeat_2026_04_27/layers_signal/HealthyBasic44_1OS_Anonym_1_4563423_Angio_full_mask_signal.nii.gz #/home/kreitner/TUM_repeat_2026_04_27/layers_signal/HealthyBasic46_5OD_Anonym_1_4506713_Angio_full_mask_signal.nii.gz
   
     # Optional: Explicit zone mapping (auto-detected if not provided)
     # Higher values are assumed to be superficial layers
@@ -19,7 +19,17 @@ Greenhouse:
   FAZ_radius_bound: # The FAZ radius is randomly drawn from a normal distribution with these parameters
     - 0.4
     - 0.04
-  rotation_radius: 1 # The radius from the FAZ center in which to apply the rotation term 
+  rotation_radius: 1 # Fixed rotation radius (mm). Used only if rotation_radius_from_faz.enabled is false.
+  # Optional FAZ-dependent rotation radius (overrides rotation_radius when enabled).
+  # rotation_radius = scale * FAZ_radius + offset_mm / param_scale  (unit space).
+  # Defaults reproduce the historical pairing FAZ_radius=0.4mm, rotation_radius=1mm
+  # (param_scale=3 -> FAZ=0.1333u, rot=0.3333u): scale=2.5, offset_mm=0.
+  rotation_radius_from_faz:
+    enabled: true
+    scale: 1
+    offset_mm: 0.2
+  # Multiplier on rotation blend weight after sqrt (default 1).
+  rotation_strength: 1.5
   FAZ_center: # x-y position of the FAZ
     - 0.5
     - 0.5
@@ -29,10 +39,19 @@ Greenhouse:
   FAZ_from_geometry: true
   FAZ_geometry_proj_axis: 2
   FAZ_geometry_use_config_fallback: true
+  # Grown volume FAZ ≈ 0.902 * r_input + 0.033 (configs3 fit). Use inverse so input matches geometry target:
+  # r_input = a * r_geometry_extracted + b (unit space).
+  FAZ_radius_calibration:
+    enabled: false
+    a: 1
+    b: 0
+    # If true, only apply when FAZ radius came from geometry (not fallback sampling).
+    apply_only_after_geometry_extraction: true
   # In each run's saved config.yml, FAZ_center and FAZ_radius are overwritten with the values
   # actually used (geometry extraction or sampling); FAZ_radius is in unit space, not mm.
   nerve_center: [10.56,5.16] # If type is set to nerve, this is the x-y position of the nerve
   nerve_radius: 0.3 # Radius of the optical nerve
+  prune_leaf_neighbors_of_degree3: true # Optional final cleanup: remove leaf nodes directly attached to degree-3 nodes
   param_scale: 3 # Parameter scale used to scale all spatial parameters. 3 means we generate a 3 mm x 3 mm image.
   modes: # List of sequential growth stages. We first develop the superficial vascular complex (SVC), then the deep vascular complex (DVC)
     - name: SVC1
@@ -48,6 +67,7 @@ Greenhouse:
       phi: 15 # Minimal std of attraction vector angles for symetric bifurcation
       omega: 0.3 # Weighting factor optimal growth direction
       kappa: 2.55 # Bifurcation exponent
+      min_bifurcation_hops: 0 # Minimal hop distance from degree-3 nodes when creating a new degree-3 node
       delta_sigma: 0.02 # Linear growth rate of simulation space per iter
     - name: SVC2
       I: 50 # Number of iterations
@@ -62,9 +82,10 @@ Greenhouse:
       phi: 15 # Minimal std of attraction vector angles for symetric bifurcation
       omega: 0.2 # Weighting factor optimal growth direction
       kappa: 2.55 # Bifurcation exponent
+      min_bifurcation_hops: 0 # Increase spacing between bifurcations for this growth phase
       delta_sigma: 0.02 # Linear growth rate of simulation space per iter
     - name: DVC
-      I: 130
+      I: 200
       N: 2000
       eps_n: 0.09
       eps_s: 0.0675
@@ -76,10 +97,11 @@ Greenhouse:
       phi: 15
       omega: 0
       kappa: 100
+      min_bifurcation_hops: 2
       delta_sigma: 0.02
     - name: DVC
-      I: 80
-      N: 2000
+      I: 150
+      N: 1000
       eps_n: 0.09
       eps_s: 0.0675
       eps_k: 0.0675
@@ -90,8 +112,9 @@ Greenhouse:
       phi: 90
       omega: 0
       kappa: 100
+      min_bifurcation_hops: 2
       allow_bifurcation: false
-      delta_sigma: 0.02
+      delta_sigma: 0
 output:
   directory: ./vessel_graph_generation/datasets/dataset_29_April_2026/ # Output directory
   image_scale_factor: 512 # Number of pixels for the largest image dimension. Final dimensions are calculated based on simulation space dimensions.

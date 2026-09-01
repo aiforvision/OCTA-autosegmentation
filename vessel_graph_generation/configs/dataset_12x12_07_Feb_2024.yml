@@ -1,0 +1,66 @@
+Forest:
+  N_trees: 16
+  source_walls:
+    x0: true
+    x1: true
+    y0: true
+    y1: true
+    z0: false
+    z1: false
+  type: nerve
+Greenhouse:
+  FAZ_center:
+  - 0.5
+  - 0.5
+  FAZ_radius_bound:
+  - 0.44
+  - 0.04
+  SimulationSpace:
+    no_voxel_x: 1
+    no_voxel_y: 1
+    no_voxel_z: 0.0033
+  d: 0.15
+  modes:
+  - I: 400
+    N: 8000
+    delta_art: 0.2925
+    delta_sigma: 0.0018
+    delta_ven: 0.2925
+    eps_k: 0.135
+    eps_n: 0.18
+    eps_s: 0.135
+    gamma_art: 50
+    gamma_ven: 50
+    kappa: 2.55
+    name: SVC
+    omega: 0.3
+    phi: 15
+  - I: 500
+    N: 8000
+    delta_art: 0.14625
+    delta_sigma: 0.002222
+    delta_ven: 0.14625
+    eps_k: 0.0675
+    eps_n: 0.09
+    eps_s: 0.0675
+    gamma_art: 90
+    gamma_ven: 90
+    kappa: 2.9
+    name: DVC
+    omega: 0
+    phi: 15
+  nerve_center:
+  - 10.56
+  - 5.16
+  nerve_radius: 0.3
+  param_scale: 12
+  r: 0.0025
+  rotation_radius: 1.05
+output:
+  directory: /home/linus/Datasets/OCTA/OCTA_synth/dataset_12x12_07_Feb_2024
+  image_scale_factor: 1024
+  proj_axis: 2
+  save_2D_image: false
+  save_3D_volumes: null
+  save_stats: false
+  save_trees: true
